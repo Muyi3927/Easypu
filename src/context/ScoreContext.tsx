@@ -132,7 +132,7 @@ const initialScore: Score = {
   // 小节样式
   barlineSize: 2,
   barlineColor: '#3d3d3d',
-  octaveDotSize: 4,
+  octaveDotSize: 6,
   // 页码
   showPageNumber: true,
   pageNumberStyle: '1/2',

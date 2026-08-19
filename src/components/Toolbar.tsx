@@ -394,16 +394,16 @@ export const Toolbar = () => {
               <button
                 className="tool-btn"
                 onClick={() => {
-                  const sizes = [2.5, 4, 5.5, 7];
-                  const curSize = score.octaveDotSize || 4;
+                  const sizes = [4, 6, 7.5, 9];
+                  const curSize = score.octaveDotSize || 6;
                   const curIdx = sizes.findIndex(s => Math.abs(s - curSize) < 0.4);
-                  const nextSize = curIdx === -1 ? 4 : sizes[(curIdx + 1) % sizes.length];
+                  const nextSize = curIdx === -1 ? 6 : sizes[(curIdx + 1) % sizes.length];
                   setScore({ ...score, octaveDotSize: nextSize });
                 }}
-                title={`点击循环切换高低音点大小 (当前: ${score.octaveDotSize || 4}px)`}
+                title={`点击循环切换高低音点大小 (当前: ${score.octaveDotSize || 6}px)`}
               >
                 <div className="note-icon">·̇</div>
-                <div className="note-label">音点({score.octaveDotSize || 4}px)</div>
+                <div className="note-label">音点({score.octaveDotSize || 6}px)</div>
               </button>
             </div>
           </div>

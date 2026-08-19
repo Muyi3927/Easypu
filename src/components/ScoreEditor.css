@@ -1775,6 +1775,11 @@
   font-size: 15px;
 }
 
+/* 当底部显示钢琴键盘时，悬浮按钮自动抬高避开钢琴键盘，绝不遮挡琴键 */
+.floating-settings-trigger-btn.with-keyboard {
+  bottom: 200px;
+}
+
 @media print {
   .floating-settings-trigger-btn {
     display: none !important;

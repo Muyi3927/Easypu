@@ -1263,24 +1263,24 @@ export const ScoreEditor = () => {
                             <input
                               type="range"
                               min="2"
-                              max="8"
+                              max="10"
                               step="0.5"
-                              value={score.octaveDotSize || 4}
-                              onChange={e => setScore({ ...score, octaveDotSize: parseFloat(e.target.value) || 4 })}
+                              value={score.octaveDotSize || 6}
+                              onChange={e => setScore({ ...score, octaveDotSize: parseFloat(e.target.value) || 6 })}
                             />
-                            <span className="range-value">{score.octaveDotSize || 4}px</span>
+                            <span className="range-value">{score.octaveDotSize || 6}px</span>
                           </div>
                           <div className="page-width-presets">
                             {[
-                              { label: '精细 (2.5px)', value: 2.5 },
-                              { label: '标准 (4px)', value: 4 },
-                              { label: '大号 (5.5px)', value: 5.5 },
-                              { label: '特大 (7px)', value: 7 },
+                              { label: '精细 (4px)', value: 4 },
+                              { label: '标准 (6px)', value: 6 },
+                              { label: '大号 (7.5px)', value: 7.5 },
+                              { label: '特大 (9px)', value: 9 },
                             ].map(preset => (
                               <button
                                 key={preset.value}
                                 type="button"
-                                className={`preset-chip ${Math.abs((score.octaveDotSize || 4) - preset.value) < 0.3 ? 'active' : ''}`}
+                                className={`preset-chip ${Math.abs((score.octaveDotSize || 6) - preset.value) < 0.3 ? 'active' : ''}`}
                                 onClick={() => setScore({ ...score, octaveDotSize: preset.value })}
                               >
                                 {preset.label}
@@ -1615,7 +1615,7 @@ export const ScoreEditor = () => {
                                         isActive={!isPreviewMode && activeTab === 'notes' && activeNoteId === note.id}
                                         isPlaying={playingNoteId === note.id}
                                         noteFont={score.noteFont}
-                                        octaveDotSize={score.octaveDotSize || 4}
+                                        octaveDotSize={score.octaveDotSize || 6}
                                         isBeatEnd={isBeatEnd}
                                         isPreviewMode={isPreviewMode}
                                         onClick={() => {
@@ -1875,10 +1875,11 @@ export const ScoreEditor = () => {
       {/* 悬浮排版与间距设置快捷按钮 */}
       {!isPreviewMode && !showSettings && (
         <button
-          className="floating-settings-trigger-btn"
+          className={`floating-settings-trigger-btn ${activeTab === 'notes' ? 'with-keyboard' : ''}`}
           onClick={() => {
             setActiveSettingsTab('style');
             setShowSettings(true);
+            setExpandedSections(prev => ({ ...prev, layout: true }));
           }}
           title="打开排版与间距滑杆设置"
         >
@@ -1895,7 +1896,7 @@ const NoteBlock = ({
   isActive,
   isPlaying,
   noteFont,
-  octaveDotSize = 4,
+  octaveDotSize = 6,
   isBeatEnd,
   isPreviewMode,
   onClick
