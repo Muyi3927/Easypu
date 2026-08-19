@@ -360,7 +360,6 @@ export const ScoreEditor = () => {
   ];
 
   const measuresPerLineOptions = [2, 3, 4, 5, 6, 7, 8];
-  const lineHeightOptions = [0.1, 0.5, 1.0, 1.5];
   const fontOptions = ['Times New Roman', 'Arial', '宋体', '黑体', 'Georgia', '楷体'];
   const fontSizeOptions = [24, 32, 36, 48]; // 4档 (从24到48分4档)
   const barlineSizeOptions = [1, 2, 3, 4]; // 4档，映射到1-3em
@@ -1007,12 +1006,78 @@ export const ScoreEditor = () => {
                         </div>
                       </div>
                       <div className="form-group">
-                        <label>行距</label>
-                        <select value={score.lineHeight} onChange={e => setScore({ ...score, lineHeight: parseFloat(e.target.value) })}>
-                          {lineHeightOptions.map(n => (
-                            <option key={n} value={n}>{n.toFixed(1)}倍</option>
-                          ))}
-                        </select>
+                        <label>行间距 (手动滑杆)</label>
+                        <div className="page-width-control">
+                          <div className="page-width-slider-row">
+                            <input
+                              type="range"
+                              min="0"
+                              max="1.5"
+                              step="0.05"
+                              value={score.lineHeight !== undefined ? score.lineHeight : 0.1}
+                              onChange={e => setScore({ ...score, lineHeight: parseFloat(e.target.value) })}
+                            />
+                            <span className="range-value">{((score.lineHeight !== undefined ? score.lineHeight : 0.1) * 10).toFixed(1)} 档 ({(score.lineHeight || 0.1).toFixed(2)}x)</span>
+                          </div>
+                          <div className="page-width-presets">
+                            {[
+                              { label: '极紧凑 (0.0x)', value: 0 },
+                              { label: '紧凑 (0.1x)', value: 0.1 },
+                              { label: '标准 (0.3x)', value: 0.3 },
+                              { label: '舒适 (0.6x)', value: 0.6 },
+                              { label: '宽松 (1.0x)', value: 1.0 },
+                            ].map(preset => (
+                              <button
+                                key={preset.value}
+                                type="button"
+                                className={`preset-chip ${Math.abs((score.lineHeight ?? 0.1) - preset.value) < 0.03 ? 'active' : ''}`}
+                                onClick={() => setScore({ ...score, lineHeight: preset.value })}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label>上下页边距 (手动滑杆)</label>
+                        <div className="page-width-control">
+                          <div className="page-width-slider-row">
+                            <input
+                              type="range"
+                              min="0"
+                              max="60"
+                              step="2"
+                              value={score.pageMarginTop !== undefined ? score.pageMarginTop : 12}
+                              onChange={e => {
+                                const val = parseInt(e.target.value) || 0;
+                                setScore({ ...score, pageMarginTop: val, pageMarginBottom: Math.round(val * 1.25) });
+                              }}
+                            />
+                            <span className="range-value">{score.pageMarginTop ?? 12}px</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label>左右页边距 (手动滑杆)</label>
+                        <div className="page-width-control">
+                          <div className="page-width-slider-row">
+                            <input
+                              type="range"
+                              min="0"
+                              max="50"
+                              step="2"
+                              value={score.pageMarginLeft !== undefined ? score.pageMarginLeft : 12}
+                              onChange={e => {
+                                const val = parseInt(e.target.value) || 0;
+                                setScore({ ...score, pageMarginLeft: val, pageMarginRight: val });
+                              }}
+                            />
+                            <span className="range-value">{score.pageMarginLeft ?? 12}px</span>
+                          </div>
+                        </div>
                       </div>
                       <div className="form-group">
                         <label>小节序号</label>
@@ -1726,6 +1791,21 @@ export const ScoreEditor = () => {
           )}
         </div>
       ))}
+
+      {/* 悬浮排版与间距设置快捷按钮 */}
+      {!isPreviewMode && !showSettings && (
+        <button
+          className="floating-settings-trigger-btn"
+          onClick={() => {
+            setActiveSettingsTab('style');
+            setShowSettings(true);
+          }}
+          title="打开排版与间距滑杆设置"
+        >
+          <span className="icon">⚙️</span>
+          <span className="label">排版与间距滑杆</span>
+        </button>
+      )}
     </div>
   );
 };

@@ -1723,3 +1723,41 @@
     min-width: 0;
   }
 }
+
+/* 悬浮排版与间距设置快捷按钮 */
+.floating-settings-trigger-btn {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 10px 18px;
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+  z-index: 90;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.floating-settings-trigger-btn:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.45);
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+}
+
+.floating-settings-trigger-btn .icon {
+  font-size: 15px;
+}
+
+@media print {
+  .floating-settings-trigger-btn {
+    display: none !important;
+  }
+}
