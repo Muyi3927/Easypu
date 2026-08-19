@@ -681,9 +681,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // 优先从 D1 查询校验，并可从 R2 查找
     if (path === '/api/auth/login' && method === 'POST') {
       const body = await request.json() as any;
-      const { usernameOrEmail, password } = body;
+      const usernameOrEmail = body.usernameOrEmail || body.username || body.email || body.account;
+      const password = body.password;
 
-      if (!usernameOrEmail || !usernameOrEmail.trim()) {
+      if (!usernameOrEmail || !String(usernameOrEmail).trim()) {
         return new Response(JSON.stringify({ error: '请输入用户名或电子邮箱' }), { status: 400, headers });
       }
 
