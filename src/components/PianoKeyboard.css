@@ -1,0 +1,285 @@
+.piano-container {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #161724 0%, #0d0e17 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 6px 12px 10px;
+  box-sizing: border-box;
+  border-top: 1px solid #2d2e42;
+  box-shadow: inset 0 8px 16px rgba(0, 0, 0, 0.3);
+  gap: 6px;
+}
+
+/* 顶部控制与快捷键提示条 */
+.piano-top-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 4px;
+  gap: 12px;
+}
+
+.piano-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.piano-btn-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 0 2px;
+}
+
+.piano-quick-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.piano-quick-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: #60a5fa;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.piano-quick-btn:active {
+  transform: translateY(1px);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.piano-quick-btn.active {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border-color: #60a5fa;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
+}
+
+.btn-glyph {
+  font-size: 14px;
+  font-weight: 800;
+  font-family: monospace, serif;
+}
+
+.btn-text {
+  font-weight: 500;
+  font-size: 11.5px;
+}
+
+.btn-kbd {
+  font-size: 10px;
+  color: #94a3b8;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: monospace;
+}
+
+.piano-shortcut-hints {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 3px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hint-pill {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.hint-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #cbd5e1;
+}
+
+.hint-item kbd {
+  font-size: 10px;
+  background: #1e293b;
+  color: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid #475569;
+  font-family: monospace;
+  font-weight: 600;
+}
+
+/* 钢琴键盘主体容器 */
+.piano-keyboard-wrapper {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.piano-keyboard {
+  display: flex;
+  height: 100%;
+  min-height: 115px;
+  background-color: #0b0b12;
+  padding: 3px 6px;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), inset 0 2px 0 #3b82f6;
+  position: relative;
+}
+
+/* 钢琴顶部红呢布条细节 */
+.piano-keyboard::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  right: 6px;
+  height: 3px;
+  background: linear-gradient(90deg, #991b1b, #dc2626, #991b1b);
+  z-index: 10;
+  border-radius: 2px 2px 0 0;
+}
+
+.piano-keyboard::-webkit-scrollbar {
+  height: 5px;
+}
+
+.piano-keyboard::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+.octave-group {
+  display: flex;
+  flex: 1 0 220px; /* min width 220px per octave */
+  border-right: 1px solid #1e293b;
+}
+
+.octave-group:last-child {
+  border-right: none;
+}
+
+.piano-key-wrapper {
+  position: relative;
+  display: flex;
+  flex: 1;
+}
+
+.piano-key {
+  cursor: pointer;
+  border: 1px solid #334155;
+  border-radius: 0 0 5px 5px;
+  transition: all 0.08s ease-out;
+  outline: none;
+  user-select: none;
+}
+
+.white-key {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 80%, #f1f5f9 100%);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding-bottom: 8px;
+  border-left: 1px solid #e2e8f0;
+  border-right: 1px solid #cbd5e1;
+  border-bottom: 3px solid #94a3b8;
+  box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.04), 0 3px 6px rgba(0, 0, 0, 0.12);
+}
+
+.white-key:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-bottom-color: #3b82f6;
+}
+
+.white-key:active {
+  background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
+  border-bottom-width: 1px;
+  transform: translateY(2px);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.black-key {
+  position: absolute;
+  width: 62%;
+  height: 60%;
+  background: linear-gradient(180deg, #334155 0%, #1e293b 45%, #0f172a 100%);
+  top: 0;
+  left: 69%;
+  z-index: 5;
+  border: 1px solid #090d16;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 5px;
+}
+
+.black-key:hover {
+  background: linear-gradient(180deg, #475569 0%, #334155 50%, #1e293b 100%);
+}
+
+.black-key:active {
+  background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  transform: translateY(2px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.key-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e293b;
+  pointer-events: none;
+}
+
+.high-dot, .low-dot {
+  display: block;
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: 50%;
+  background-color: #2563eb;
+  margin: 1px 0;
+}
+
+.number {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.key-hint {
+  color: #38bdf8;
+  font-size: 9.5px;
+  font-weight: 600;
+  display: block;
+  text-align: center;
+  pointer-events: none;
+  letter-spacing: -0.5px;
+}

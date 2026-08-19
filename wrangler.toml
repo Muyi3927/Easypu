@@ -1,0 +1,22 @@
+name = "easypu-app"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "dist"
+
+# Cloudflare R2 Bucket Binding
+# 在 Cloudflare Dashboard 中创建名为 "easypu-scores" 的 R2 存储桶并绑定
+[[r2_buckets]]
+binding = "EASYPU_BUCKET"
+bucket_name = "easypu-scores"
+
+# Cloudflare D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "easypu-db"
+database_id = "f164d0fc-6bbf-4b0a-acae-484805ed84f3"
+
+# 自定义域名配置
+# 部署后在 Cloudflare Pages -> Custom domains 中绑定: pu.fangwengudao.us.kg
+[vars]
+CLOUDFLARE_DOMAIN = "pu.fangwengudao.us.kg"
+APP_NAME = "Easypu"
+

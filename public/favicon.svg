@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- 主体圆角微渐变 (现代音乐蓝紫色系) -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="50%" stop-color="#4F46E5" />
+      <stop offset="100%" stop-color="#7C3AED" />
+    </linearGradient>
+
+    <!-- 顶部玻璃高光 -->
+    <linearGradient id="top-glare" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.32" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+
+    <!-- 乐符渐变与柔和投影 -->
+    <linearGradient id="note-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F1F5F9" />
+    </linearGradient>
+
+    <filter id="drop-shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.8" flood-color="#0f172a" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- 弥散阴影底衬 -->
+  <rect x="3" y="4.5" width="58" height="58" rx="16" fill="#1e1b4b" opacity="0.16" />
+
+  <!-- 主圆角矩形 -->
+  <rect x="3" y="3" width="58" height="58" rx="16" fill="url(#bg-grad)" />
+
+  <!-- 顶部轻微高光 -->
+  <path d="M 3 19 C 3 10.16 10.16 3 19 3 L 45 3 C 53.84 3 61 10.16 61 19 L 61 26 C 45 21 19 21 3 26 Z" fill="url(#top-glare)" />
+
+  <!-- 底部装饰谱线 -->
+  <path d="M 11 50 Q 32 46 53 50" stroke="#C7D2FE" stroke-width="2" stroke-linecap="round" opacity="0.4" />
+
+  <!-- 核心乐符组合 (现代双八分音符 ♫ + 简谱节奏元素) -->
+  <g filter="url(#drop-shadow)" fill="url(#note-grad)">
+    <!-- 连梁 -->
+    <path d="M 23 17.5 L 43 12.5 C 44.6 12.1 46 13.2 46 14.8 L 46 18.2 L 23 23.2 Z" />
+    
+    <!-- 左符干 -->
+    <rect x="23" y="18" width="3.8" height="23" rx="1.9" />
+    <!-- 右符干 -->
+    <rect x="42.2" y="13.5" width="3.8" height="23" rx="1.9" />
+
+    <!-- 左符头 (倾斜椭圆) -->
+    <ellipse cx="19.2" cy="40.5" rx="6.2" ry="4.6" transform="rotate(-24 19.2 40.5)" />
+
+    <!-- 右符头 (倾斜椭圆) -->
+    <ellipse cx="38.4" cy="36" rx="6.2" ry="4.6" transform="rotate(-24 38.4 36)" />
+
+    <!-- 简谱音符跳跃点 (高音点) -->
+    <circle cx="32.5" cy="27.5" r="2.2" fill="#38BDF8" />
+  </g>
+</svg>

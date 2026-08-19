@@ -1,0 +1,8 @@
+# Cloudflare Pages Functions 本地环境变量配置模板
+# 复制本文件为 .dev.vars 并填入您自己的真实配置（.dev.vars 已被 .gitignore 忽略，绝不会推送到 GitHub）
+
+# Resend API Key (从 https://resend.com/api-keys 获取)
+RESEND_API_KEY=your_resend_api_key_here
+
+# 邮件发信人地址
+RESEND_FROM_EMAIL=Easypu 简谱 <verify@your-verified-domain.com>

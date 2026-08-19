@@ -1,0 +1,32 @@
+{
+  "name": "easypu",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "pages:dev": "npm run build && wrangler pages dev dist --d1=DB=easypu-db --r2=EASYPU_BUCKET=easypu-scores",
+    "db:init:local": "wrangler d1 execute easypu-db --local --file=./schema.sql",
+    "db:init:remote": "wrangler d1 execute easypu-db --remote --file=./schema.sql",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-icons": "^5.7.0",
+    "react-router-dom": "^7.18.2",
+    "uuid": "^14.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^6.0.4",
+    "oxlint": "^1.75.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.0"
+  }
+}
