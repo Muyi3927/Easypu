@@ -222,13 +222,13 @@ export const Toolbar = () => {
       }
     },
     {
-      label: `标注字号 (${score.annotationFont?.fontSize || 14}px)`,
+      label: `标注字号 (${score.annotationFont?.fontSize || 24}px)`,
       icon: '字号',
       action: () => {
-        const sizes = [12, 14, 16, 18, 20, 24];
-        const curSize = score.annotationFont?.fontSize || 14;
+        const sizes = [16, 20, 24, 28, 32, 36];
+        const curSize = score.annotationFont?.fontSize || 24;
         const curIdx = sizes.indexOf(curSize);
-        const nextSize = sizes[(curIdx + 1) % sizes.length];
+        const nextSize = curIdx === -1 ? 24 : sizes[(curIdx + 1) % sizes.length];
         setScore({
           ...score,
           annotationFont: {

@@ -128,7 +128,7 @@ const initialScore: Score = {
   noteFont: { fontFamily: 'Times New Roman', fontSize: 36, color: '#101010' },
   lyricFont: { fontFamily: '黑体', fontSize: 36, color: '#101010' },
   chordFont: { ...defaultFont, fontSize: 12 },
-  annotationFont: { fontFamily: '黑体', fontSize: 14, color: '#1e293b' },
+  annotationFont: { fontFamily: '黑体', fontSize: 24, color: '#1e293b' },
   // 小节样式
   barlineSize: 2,
   barlineColor: '#3d3d3d',
