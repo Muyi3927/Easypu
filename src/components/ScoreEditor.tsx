@@ -604,15 +604,21 @@ export const ScoreEditor = () => {
     return () => window.removeEventListener('keydown', handleScoreKeyDown);
   }, [activeNote, updateActiveNote, isPreviewMode, currentDuration, setCurrentDuration, isDotted, setIsDotted, score.measures, score.keySignature, score.tempo, activeMeasureId, activeNoteId, selectNote, setScore]);
 
-  // 更新字体设置
+  // 更新字体设置（全面兼容历史无 annotationFont 的乐谱）
   const updateFont = (fontKey: string, field: keyof FontSettings, value: string | number) => {
-    setScore(prev => ({
-      ...prev,
-      [fontKey]: {
-        ...(prev[fontKey as keyof typeof prev] as FontSettings),
-        [field]: value,
-      }
-    }));
+    setScore(prev => {
+      const defaultObj: FontSettings = fontKey === 'annotationFont'
+        ? { fontFamily: '黑体', fontSize: 14, color: '#1e293b' }
+        : { fontFamily: '黑体', fontSize: 16, color: '#101010' };
+      const current = (prev[fontKey as keyof typeof prev] as FontSettings) || defaultObj;
+      return {
+        ...prev,
+        [fontKey]: {
+          ...current,
+          [field]: value,
+        }
+      };
+    });
   };
 
   // 计算曲谱当前最大歌词行数
@@ -1047,53 +1053,57 @@ export const ScoreEditor = () => {
                   {expandedSections.fontStyles && (
                     <div className="section-content">
                       {[
-                        { key: 'titleFont', label: '标题' },
-                        { key: 'subtitleFont', label: '副标题' },
-                        { key: 'noteFont', label: '音符' },
-                        { key: 'lyricFont', label: '歌词' },
-                        { key: 'chordFont', label: '和弦' },
-                      ].map(({ key, label }) => (
-                        <div key={key} className="font-section">
-                          <div className="font-section-header">{label}</div>
-                          <div className="form-group">
-                            <label>字体</label>
-                            <select
-                              value={(score[key as keyof typeof score] as FontSettings).fontFamily}
-                              onChange={e => updateFont(key, 'fontFamily', e.target.value)}
-                            >
-                              {fontOptions.map(f => (
-                                <option key={f} value={f}>{f}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="form-group">
-                            <label>字号 (4档)</label>
-                            <div className="font-size-grid">
-                              {fontSizeOptions.map(size => (
-                                <button
-                                  key={size}
-                                  type="button"
-                                  className={`font-size-btn ${(score[key as keyof typeof score] as FontSettings).fontSize === size ? 'active' : ''}`}
-                                  onClick={() => updateFont(key, 'fontSize', size)}
-                                >
-                                  {size}px
-                                </button>
-                              ))}
+                        { key: 'titleFont', label: '标题', defaultVal: { fontFamily: '宋体', fontSize: 32, color: '#101010' } },
+                        { key: 'subtitleFont', label: '副标题', defaultVal: { fontFamily: '宋体', fontSize: 16, color: '#101010' } },
+                        { key: 'noteFont', label: '音符', defaultVal: { fontFamily: 'Times New Roman', fontSize: 36, color: '#101010' } },
+                        { key: 'lyricFont', label: '歌词', defaultVal: { fontFamily: '黑体', fontSize: 36, color: '#101010' } },
+                        { key: 'chordFont', label: '和弦', defaultVal: { fontFamily: '思源黑体', fontSize: 12, color: '#101010' } },
+                        { key: 'annotationFont', label: '行首标注', defaultVal: { fontFamily: '黑体', fontSize: 14, color: '#1e293b' } },
+                      ].map(({ key, label, defaultVal }) => {
+                        const fontObj: FontSettings = (score[key as keyof typeof score] as FontSettings) || defaultVal;
+                        return (
+                          <div key={key} className="font-section">
+                            <div className="font-section-header">{label}</div>
+                            <div className="form-group">
+                              <label>字体</label>
+                              <select
+                                value={fontObj.fontFamily || defaultVal.fontFamily}
+                                onChange={e => updateFont(key, 'fontFamily', e.target.value)}
+                              >
+                                {fontOptions.map(f => (
+                                  <option key={f} value={f}>{f}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="form-group">
+                              <label>字号 (4档)</label>
+                              <div className="font-size-grid">
+                                {fontSizeOptions.map(size => (
+                                  <button
+                                    key={size}
+                                    type="button"
+                                    className={`font-size-btn ${fontObj.fontSize === size ? 'active' : ''}`}
+                                    onClick={() => updateFont(key, 'fontSize', size)}
+                                  >
+                                    {size}px
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="form-group">
+                              <label>文字颜色</label>
+                              <div className="color-input">
+                                <input
+                                  type="color"
+                                  value={fontObj.color || defaultVal.color}
+                                  onChange={e => updateFont(key, 'color', e.target.value)}
+                                />
+                                <span>{fontObj.color || defaultVal.color}</span>
+                              </div>
                             </div>
                           </div>
-                          <div className="form-group">
-                            <label>文字颜色</label>
-                            <div className="color-input">
-                              <input
-                                type="color"
-                                value={(score[key as keyof typeof score] as FontSettings).color}
-                                onChange={e => updateFont(key, 'color', e.target.value)}
-                              />
-                              <span>{(score[key as keyof typeof score] as FontSettings).color}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1522,6 +1532,11 @@ export const ScoreEditor = () => {
                                     value={rowAnnotation}
                                     placeholder="标注"
                                     onClick={e => e.stopPropagation()}
+                                    style={{
+                                      fontFamily: score.annotationFont?.fontFamily || '黑体',
+                                      fontSize: `${score.annotationFont?.fontSize || 14}px`,
+                                      color: score.annotationFont?.color || '#1e293b'
+                                    }}
                                     onChange={e => {
                                       if (line[0]) updateLineAnnotation(line[0].id, e.target.value, rowIndex);
                                     }}
@@ -1542,6 +1557,11 @@ export const ScoreEditor = () => {
                                       setActiveTab('text');
                                       setEditingLyricRow(rowIndex);
                                       setEditingAnnotationLineIndex(lineIndex);
+                                    }}
+                                    style={{
+                                      fontFamily: score.annotationFont?.fontFamily || '黑体',
+                                      fontSize: `${score.annotationFont?.fontSize || 14}px`,
+                                      color: score.annotationFont?.color || '#1e293b'
                                     }}
                                     title={isPreviewMode ? '' : `点击修改第 ${rowIndex + 1} 段行首标记`}
                                   >

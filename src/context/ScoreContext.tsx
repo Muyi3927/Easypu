@@ -18,6 +18,7 @@ interface ScoreContextType {
   toggleSlurEnd: (noteId: string) => void;
   insertMeasureAfter: (measureId: string) => void;
   insertLine: () => void;
+  deleteLine: (targetMeasureId?: string) => void;
   insertPage: (linesCount?: number) => void;
   setMeasuresPerLine: (count: number) => void;
   deleteMeasure: (measureId: string) => void;
@@ -127,6 +128,7 @@ const initialScore: Score = {
   noteFont: { fontFamily: 'Times New Roman', fontSize: 36, color: '#101010' },
   lyricFont: { fontFamily: '黑体', fontSize: 36, color: '#101010' },
   chordFont: { ...defaultFont, fontSize: 12 },
+  annotationFont: { fontFamily: '黑体', fontSize: 14, color: '#1e293b' },
   // 小节样式
   barlineSize: 2,
   barlineColor: '#3d3d3d',
@@ -550,6 +552,83 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
       activeNoteIdRef.current = firstNew.notes[0]?.id || null;
       setActiveMeasureId(firstNew.id);
       setActiveNoteId(firstNew.notes[0]?.id || null);
+    }
+  };
+
+  const deleteLine = (targetMeasureId?: string) => {
+    const currentScore = scoreRef.current;
+    if (currentScore.measures.length <= 1) {
+      // 只有一节时，重置为单节空小节
+      const emptyM = generatePlaceholderMeasure(currentScore.timeSignature);
+      const nextScore = { ...currentScore, measures: [emptyM] };
+      applyScoreUpdate(nextScore);
+      setActiveMeasureId(emptyM.id);
+      setActiveNoteId(emptyM.notes[0]?.id || null);
+      return;
+    }
+
+    const mid = targetMeasureId || activeMeasureIdRef.current || currentScore.measures[0]?.id;
+    // 1. 分解当前曲谱的所有行
+    const lines: Measure[][] = [];
+    let curLine: Measure[] = [];
+    currentScore.measures.forEach(m => {
+      curLine.push(m);
+      if (m.isBreak) {
+        lines.push(curLine);
+        curLine = [];
+      }
+    });
+    if (curLine.length > 0) lines.push(curLine);
+
+    // 2. 找到目标 mid 所在的行索引
+    let targetLineIdx = lines.findIndex(l => l.some(m => m.id === mid));
+    if (targetLineIdx === -1) {
+      targetLineIdx = lines.length - 1; // 默认删除最后一行
+    }
+
+    // 3. 删除该行
+    lines.splice(targetLineIdx, 1);
+
+    if (lines.length === 0) {
+      // 若全部删空，重置保留一个空白标准行
+      const count = currentScore.measuresPerLine || 6;
+      const newMeasures: Measure[] = [];
+      for (let i = 0; i < count; i++) {
+        newMeasures.push({
+          ...generatePlaceholderMeasure(currentScore.timeSignature),
+          isBreak: i === count - 1
+        });
+      }
+      const nextScore = { ...currentScore, measures: newMeasures };
+      applyScoreUpdate(nextScore);
+      setActiveMeasureId(newMeasures[0].id);
+      setActiveNoteId(newMeasures[0].notes[0]?.id || null);
+      return;
+    }
+
+    // 4. 重组 measures，并确保每行末尾小节保留 isBreak
+    const remainingMeasures: Measure[] = [];
+    lines.forEach((l) => {
+      l.forEach((m, mIdx) => {
+        const isLastInLine = mIdx === l.length - 1;
+        remainingMeasures.push({
+          ...m,
+          isBreak: isLastInLine
+        });
+      });
+    });
+
+    const nextScore = { ...currentScore, measures: remainingMeasures };
+    applyScoreUpdate(nextScore);
+
+    // 5. 焦点重置到临近的一行首小节
+    const nextLineIdx = Math.min(targetLineIdx, lines.length - 1);
+    const focusMeasure = lines[nextLineIdx]?.[0] || remainingMeasures[0];
+    if (focusMeasure) {
+      activeMeasureIdRef.current = focusMeasure.id;
+      activeNoteIdRef.current = focusMeasure.notes[0]?.id || null;
+      setActiveMeasureId(focusMeasure.id);
+      setActiveNoteId(focusMeasure.notes[0]?.id || null);
     }
   };
 
@@ -1196,6 +1275,7 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
         toggleSlurEnd,
         insertMeasureAfter,
         insertLine,
+        deleteLine,
         insertPage,
         setMeasuresPerLine,
         deleteMeasure,

@@ -51,6 +51,7 @@ export interface Score {
   noteFont: FontSettings;
   lyricFont: FontSettings;
   chordFont: FontSettings;
+  annotationFont: FontSettings;
   // 小节样式
   barlineSize: number; // 1-6 档位
   barlineColor: string;

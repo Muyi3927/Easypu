@@ -33,6 +33,7 @@ export const Toolbar = () => {
     toggleSlurEnd,
     insertMeasureAfter,
     insertLine,
+    deleteLine,
     insertPage,
     deleteMeasure,
     toggleBreak,
@@ -43,7 +44,8 @@ export const Toolbar = () => {
     setNormalBarline,
     setPlayingNoteId,
     addLyricRow,
-    deleteLyricRow
+    deleteLyricRow,
+    setScore
   } = useScore();
 
   const stopScore = () => {
@@ -148,6 +150,11 @@ export const Toolbar = () => {
       action: () => insertLine()
     },
     {
+      label: '删除一行',
+      icon: '-行',
+      action: () => deleteLine(activeMeasureId || undefined)
+    },
+    {
       label: '新增一页',
       icon: '+页',
       action: () => insertPage(8)
@@ -212,6 +219,24 @@ export const Toolbar = () => {
       icon: '-词',
       action: () => {
         deleteLyricRow(editingLyricRow);
+      }
+    },
+    {
+      label: `标注字号 (${score.annotationFont?.fontSize || 14}px)`,
+      icon: '字号',
+      action: () => {
+        const sizes = [12, 14, 16, 18, 20, 24];
+        const curSize = score.annotationFont?.fontSize || 14;
+        const curIdx = sizes.indexOf(curSize);
+        const nextSize = sizes[(curIdx + 1) % sizes.length];
+        setScore({
+          ...score,
+          annotationFont: {
+            fontFamily: score.annotationFont?.fontFamily || '黑体',
+            fontSize: nextSize,
+            color: score.annotationFont?.color || '#1e293b'
+          }
+        });
       }
     }
   ];

@@ -320,6 +320,7 @@ class StorageService {
       noteFont: scoreData.noteFont || { fontFamily: 'Times New Roman', fontSize: 36, color: '#101010' },
       lyricFont: scoreData.lyricFont || { fontFamily: '黑体', fontSize: 36, color: '#101010' },
       chordFont: scoreData.chordFont || { fontFamily: '思源黑体', fontSize: 12, color: '#101010' },
+      annotationFont: scoreData.annotationFont || { fontFamily: '黑体', fontSize: 14, color: '#1e293b' },
       barlineSize: scoreData.barlineSize || 2,
       barlineColor: scoreData.barlineColor || '#3d3d3d',
       showPageNumber: scoreData.showPageNumber !== undefined ? scoreData.showPageNumber : true,
