@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "pages:dev": "npm run build && wrangler pages dev dist --d1=DB=easypu-db --r2=EASYPU_BUCKET=easypu-scores",
     "db:init:local": "wrangler d1 execute easypu-db --local --file=./schema.sql",
+    "db:reset:local": "rm -rf .wrangler && wrangler d1 execute easypu-db --local --file=./schema.sql",
     "db:init:remote": "wrangler d1 execute easypu-db --remote --file=./schema.sql",
     "lint": "oxlint",
     "preview": "vite preview"
