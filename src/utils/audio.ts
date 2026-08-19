@@ -116,7 +116,7 @@ export const playNote = (
   accidental: string | null,
   keySig: string,
   durationBeats: number,
-  tempo: number = 70
+  tempo: number = 120
 ) => {
   if (pitch <= 0) return; // 休止符或占位符
 
@@ -124,7 +124,7 @@ export const playNote = (
   const { noteName, frequency } = calculateMidiNote(pitch, octave, accidental, keySig);
   
   // 节拍时值计算
-  const beatDuration = 60 / (tempo || 70);
+  const beatDuration = 60 / (tempo || 120);
   const noteDurationSecs = Math.max(0.2, durationBeats * beatDuration);
 
   // 策略 A: 如果真实采样已加载，优先播放顶级真实三角钢琴录音采样

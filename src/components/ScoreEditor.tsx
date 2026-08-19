@@ -974,7 +974,7 @@ export const ScoreEditor = () => {
                       {score.showTempo && (
                         <div className="form-group">
                           <label>BPM</label>
-                          <input type="number" value={score.tempo} onChange={e => setScore({ ...score, tempo: parseInt(e.target.value) || 70 })} min={20} max={300} />
+                          <input type="number" value={score.tempo || 120} onChange={e => setScore({ ...score, tempo: parseInt(e.target.value) || 120 })} min={20} max={300} />
                         </div>
                       )}
                     </div>
