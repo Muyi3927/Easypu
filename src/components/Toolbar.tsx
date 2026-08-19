@@ -3,7 +3,7 @@ import './Toolbar.css';
 import { useEditor } from '../context/EditorContext';
 import { useScore } from '../context/ScoreContext';
 import { playNote } from '../utils/audio';
-import type { Measure } from '../types';
+import type { Measure, Note } from '../types';
 
 export const Toolbar = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -59,19 +59,83 @@ export const Toolbar = () => {
     setIsPlaying(true);
     playRef.current = true;
 
-    for (const measure of score.measures) {
-      if (!playRef.current) break;
-      for (const note of measure.notes) {
-        if (!playRef.current) break;
-        setPlayingNoteId(note.id);
-        if (note.pitch > 0) {
-          playNote(note.pitch, note.octave, note.accidental, score.keySignature, note.duration, score.tempo || 70);
+    // 1. 展平全谱所有小节的音符列表
+    const allNotes: Note[] = [];
+    score.measures.forEach(m => {
+      m.notes.forEach(n => {
+        allNotes.push(n);
+      });
+    });
+
+    // 2. 预先分析同音连音线 (Tie)：
+    // 在同音连音线跨度内（从 slurStart 到 slurEnd，或 tieStart 到 tieEnd），
+    // 若连续后一个音符的音高、八度、升降号与前一音符完全一致，则视为延音连奏：
+    // 只在首个音符发音（时值合并延长），后续同音符不重复二次敲击发声。
+    const isTiedWithPrev = new Array(allNotes.length).fill(false);
+    const totalTiedDuration = new Array(allNotes.length).fill(0);
+
+    let inSlur = false;
+    let slurHeadIndex = -1;
+
+    for (let i = 0; i < allNotes.length; i++) {
+      const note = allNotes[i];
+      if (note.slurStart || note.tieStart) {
+        inSlur = true;
+        slurHeadIndex = i;
+      }
+
+      if (inSlur && i > 0 && slurHeadIndex !== -1 && i > slurHeadIndex) {
+        const prevNote = allNotes[i - 1];
+        const isSamePitch =
+          note.pitch > 0 &&
+          note.pitch === prevNote.pitch &&
+          (note.octave || 0) === (prevNote.octave || 0) &&
+          (note.accidental || null) === (prevNote.accidental || null);
+
+        if (isSamePitch) {
+          isTiedWithPrev[i] = true;
+        } else {
+          // 音高不同则为异音连音线 (Slur)，更新当前的 slurHead
+          slurHeadIndex = i;
         }
-        const beatDurationSecs = 60 / (score.tempo || 70);
-        await new Promise(r => setTimeout(r, note.duration * beatDurationSecs * 1000));
+      }
+
+      if (note.slurEnd || note.tieEnd) {
+        inSlur = false;
+        slurHeadIndex = -1;
       }
     }
-    
+
+    // 计算每个首发音符的总延音持续时值
+    for (let i = 0; i < allNotes.length; i++) {
+      if (!isTiedWithPrev[i]) {
+        let totalDur = allNotes[i].duration;
+        let j = i + 1;
+        while (j < allNotes.length && isTiedWithPrev[j]) {
+          totalDur += allNotes[j].duration;
+          j++;
+        }
+        totalTiedDuration[i] = totalDur;
+      }
+    }
+
+    // 3. 逐个音符进行精准节拍高亮与音色播放
+    const tempo = score.tempo || 120;
+    const beatDurationSecs = 60 / tempo;
+
+    for (let i = 0; i < allNotes.length; i++) {
+      if (!playRef.current) break;
+      const note = allNotes[i];
+      setPlayingNoteId(note.id);
+
+      if (note.pitch > 0 && !isTiedWithPrev[i]) {
+        const playDur = totalTiedDuration[i] || note.duration;
+        playNote(note.pitch, note.octave, note.accidental, score.keySignature, playDur, tempo);
+      }
+
+      await new Promise(r => setTimeout(r, note.duration * beatDurationSecs * 1000));
+    }
+
     setIsPlaying(false);
     playRef.current = false;
     setPlayingNoteId(null);
