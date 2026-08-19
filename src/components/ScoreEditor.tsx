@@ -69,6 +69,8 @@ export const ScoreEditor = () => {
   const editorRef = useRef<HTMLDivElement>(null);
   const [activeLyricBeatNoteId, setActiveLyricBeatNoteId] = useState<string | null>(null);
   const isComposingRef = useRef(false);
+  const pendingOctaveRef = useRef<number>(0);
+  const pendingAccidentalRef = useRef<'#' | 'b' | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [activeSettingsTab, setActiveSettingsTab] = useState('notation');
@@ -413,6 +415,8 @@ export const ScoreEditor = () => {
       // 1. 0 输入休止符
       if (key === '0' || e.code === 'Numpad0') {
         e.preventDefault();
+        pendingOctaveRef.current = 0;
+        pendingAccidentalRef.current = null;
         const noteWasDotted = isDotted;
         const finalDuration = noteWasDotted ? currentDuration * 1.5 : currentDuration;
         if (isDotted) setIsDotted(false);
@@ -423,55 +427,35 @@ export const ScoreEditor = () => {
       // 2. - / _ 输入延音线（增时线）
       if (key === '-' || key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract') {
         e.preventDefault();
+        pendingOctaveRef.current = 0;
+        pendingAccidentalRef.current = null;
         const finalDuration = currentDuration;
         updateActiveNote({ pitch: -1, octave: 0, accidental: null, isDotted: false, duration: finalDuration });
         return;
       }
 
-      // 3. 1~7 输入音符
-      let numPitch: number | null = null;
-      if (key >= '1' && key <= '7') {
-        numPitch = parseInt(key);
-      } else if (e.code.startsWith('Numpad')) {
-        const num = parseInt(e.code.replace('Numpad', ''));
-        if (num >= 1 && num <= 7) numPitch = num;
-      }
-
-      if (numPitch !== null) {
+      // 3. 升降音快捷键: [ 降音 (b), ] 升音 (#)
+      if (key === '[' || key === '【' || e.code === 'BracketLeft' || key === ']' || key === '】' || e.code === 'BracketRight') {
         e.preventDefault();
-        const noteWasDotted = isDotted;
-        const finalDuration = noteWasDotted ? currentDuration * 1.5 : currentDuration;
-        if (isDotted) setIsDotted(false);
+        const isFlat = key === '[' || key === '【' || e.code === 'BracketLeft';
+        const targetAcc: '#' | 'b' = isFlat ? 'b' : '#';
 
-        const currentOctave = activeNote?.octave || 0;
-        const currentAccidental = activeNote?.accidental || null;
-
-        // 播放键盘敲击发音反馈
-        playNote(numPitch, currentOctave, currentAccidental, score.keySignature, finalDuration, score.tempo || 70);
-
-        updateActiveNote({ pitch: numPitch, duration: finalDuration, isDotted: noteWasDotted });
-        return;
-      }
-
-      // 4. . 附点
-      if (key === '.' || key === '。' || e.code === 'NumpadDecimal') {
-        e.preventDefault();
-        if (activeNote && activeNote.pitch >= 0) {
-          const newDotted = !activeNote.isDotted;
-          const undottedDur = activeNote.isDotted ? activeNote.duration / 1.5 : activeNote.duration;
-          const newDuration = newDotted ? undottedDur * 1.5 : undottedDur;
-          updateActiveNote({ isDotted: newDotted, duration: newDuration }, false);
-          setIsDotted(false);
+        if (activeNote && activeNote.pitch > 0) {
+          const newAcc = activeNote.accidental === targetAcc ? null : targetAcc;
+          updateActiveNote({ accidental: newAcc }, false);
+          playNote(activeNote.pitch, activeNote.octave, newAcc, score.keySignature, activeNote.duration, score.tempo || 70);
         } else {
-          setIsDotted(!isDotted);
+          pendingAccidentalRef.current = pendingAccidentalRef.current === targetAcc ? null : targetAcc;
         }
         return;
       }
 
-      // 5. ↑ 升高八度 / ↓ 降低八度
+      // 4. ↑ 升高八度 / ↓ 降低八度（先按上/下，按一下高一，连按两下高二；或直接修改当前音符）
       if (key === 'ArrowUp' || key === 'ArrowDown') {
         e.preventDefault();
-        // 查找目标音符：优先当前激活音符；如果当前音符是占位符，则作用于刚刚输入的音符
+        const isUp = key === 'ArrowUp';
+
+        // 查找目标音符：优先当前激活音符；若当前音符已是占位符，且前一个音符刚刚输入，也可作用于前一音符
         let targetNote = activeNote;
         let targetMeasureId = activeMeasureId;
 
@@ -487,19 +471,74 @@ export const ScoreEditor = () => {
         }
 
         if (targetNote && targetNote.pitch > 0) {
+          // 当前音符有实际音高：直接升降八度
           const currentOct = targetNote.octave || 0;
-          const newOct = key === 'ArrowUp' ? Math.min(2, currentOct + 1) : Math.max(-2, currentOct - 1);
+          const newOct = isUp ? Math.min(2, currentOct + 1) : Math.max(-2, currentOct - 1);
           if (targetMeasureId && targetNote.id !== activeNoteId) {
             selectNote(targetMeasureId, targetNote.id);
           }
           updateActiveNote({ octave: newOct }, false);
           playNote(targetNote.pitch, newOct, targetNote.accidental, score.keySignature, targetNote.duration, score.tempo || 70);
+          pendingOctaveRef.current = newOct;
+        } else {
+          // 预设下一个要输入的音符八度：按一下高一(+1)，连按两下高二(+2)；向下同理(-1, -2)
+          if (isUp) {
+            pendingOctaveRef.current = pendingOctaveRef.current <= 0 ? 1 : Math.min(2, pendingOctaveRef.current + 1);
+          } else {
+            pendingOctaveRef.current = pendingOctaveRef.current >= 0 ? -1 : Math.max(-2, pendingOctaveRef.current - 1);
+          }
         }
         return;
       }
 
-      // 6. ← 左移光标 / → 右移光标
+      // 5. 1~7 输入音符
+      let numPitch: number | null = null;
+      if (key >= '1' && key <= '7') {
+        numPitch = parseInt(key);
+      } else if (e.code.startsWith('Numpad')) {
+        const num = parseInt(e.code.replace('Numpad', ''));
+        if (num >= 1 && num <= 7) numPitch = num;
+      }
+
+      if (numPitch !== null) {
+        e.preventDefault();
+        const noteWasDotted = isDotted;
+        const finalDuration = noteWasDotted ? currentDuration * 1.5 : currentDuration;
+        if (isDotted) setIsDotted(false);
+
+        const currentOctave = pendingOctaveRef.current !== 0 ? pendingOctaveRef.current : (activeNote?.octave || 0);
+        const currentAccidental = pendingAccidentalRef.current !== null ? pendingAccidentalRef.current : (activeNote?.accidental || null);
+
+        // 重置预选状态
+        pendingOctaveRef.current = 0;
+        pendingAccidentalRef.current = null;
+
+        // 播放键盘敲击发音反馈
+        playNote(numPitch, currentOctave, currentAccidental, score.keySignature, finalDuration, score.tempo || 70);
+
+        updateActiveNote({ pitch: numPitch, octave: currentOctave, accidental: currentAccidental, duration: finalDuration, isDotted: noteWasDotted });
+        return;
+      }
+
+      // 6. . 附点
+      if (key === '.' || key === '。' || e.code === 'NumpadDecimal') {
+        e.preventDefault();
+        if (activeNote && activeNote.pitch >= 0) {
+          const newDotted = !activeNote.isDotted;
+          const undottedDur = activeNote.isDotted ? activeNote.duration / 1.5 : activeNote.duration;
+          const newDuration = newDotted ? undottedDur * 1.5 : undottedDur;
+          updateActiveNote({ isDotted: newDotted, duration: newDuration }, false);
+          setIsDotted(false);
+        } else {
+          setIsDotted(!isDotted);
+        }
+        return;
+      }
+
+      // 7. ← 左移光标 / → 右移光标
       if (key === 'ArrowLeft' || key === 'ArrowRight') {
+        pendingOctaveRef.current = 0;
+        pendingAccidentalRef.current = null;
         if (!activeMeasureId || !activeNoteId) return;
         const allNotesList: { measureId: string; noteId: string }[] = [];
         for (const m of score.measures) {
@@ -521,8 +560,10 @@ export const ScoreEditor = () => {
         return;
       }
 
-      // 7. Backspace / Delete 删除当前音符或回退删除上一音符
+      // 8. Backspace / Delete 删除当前音符或回退删除上一音符
       if (key === 'Backspace' || key === 'Delete') {
+        pendingOctaveRef.current = 0;
+        pendingAccidentalRef.current = null;
         e.preventDefault();
         const allNotesList: { measureId: string; noteId: string; note: Note }[] = [];
         for (const m of score.measures) {
