@@ -8,10 +8,13 @@
 ![Cloudflare](https://img.shields.io/badge/Cloudflare_Pages-F38020?style=flat-square&logo=cloudflare&logoColor=white)
 ![D1](https://img.shields.io/badge/Cloudflare_D1-SQLite-0A85EA?style=flat-square)
 ![R2](https://img.shields.io/badge/Cloudflare_R2-S3_Storage-orange?style=flat-square)
+[![GitHub Repo](https://img.shields.io/badge/GitHub-Muyi3927%2FEasypu-181717?style=flat-square&logo=github)](https://github.com/Muyi3927/Easypu)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 
 **新一代现代化、轻量高效的专业简谱在线排版与云端创作平台**  
 支持实体键盘快速录入 · 3D 拟真琴键发音 · 智能动态 A4 分页 · 矢量 SVG 高清渲染 · 1:1 无损 PDF 导出 · Cloudflare 全栈无服务器云端存储
+
+🔗 **在线演示体验**：[https://pu.fangwengudao.us.kg](https://pu.fangwengudao.us.kg)
 
 </div>
 
@@ -69,8 +72,8 @@
 
 ### 1. 克隆项目与安装依赖
 ```bash
-git clone https://github.com/your-username/jianpu-app.git
-cd jianpu-app
+git clone https://github.com/Muyi3927/Easypu.git
+cd Easypu
 npm install
 ```
 
