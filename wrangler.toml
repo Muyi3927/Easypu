@@ -3,16 +3,15 @@ compatibility_date = "2024-01-01"
 pages_build_output_dir = "dist"
 
 # Cloudflare R2 Bucket Binding
-# 在 Cloudflare Dashboard 中创建名为 "easypu-scores" 的 R2 存储桶并绑定
 [[r2_buckets]]
 binding = "EASYPU_BUCKET"
-bucket_name = "easypu-scores"
+bucket_name = "easypu"
 
 # Cloudflare D1 Database Binding
 [[d1_databases]]
 binding = "DB"
-database_name = "easypu-db"
-database_id = "f164d0fc-6bbf-4b0a-acae-484805ed84f3"
+database_name = "Easypu-db"
+database_id = "853d61e5-ed5c-4147-ba04-c42a73c70f25"
 
 # 环境变量配置 (公开非敏感变量)
 # 敏感密钥 (如 RESEND_API_KEY) 请在 Cloudflare 控制台添加为「机密 (Secret)」
