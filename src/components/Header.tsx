@@ -8,6 +8,8 @@ import { storageService } from '../services/StorageService';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
+import { useEffect } from 'react';
+
 export const Header = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -16,7 +18,23 @@ export const Header = () => {
   const { currentUser, syncPush } = useAuth();
   const { showToast } = useToast();
 
+  // 同步网页标题为当前乐谱标题
+  useEffect(() => {
+    const title = (score.title || '').trim();
+    document.title = title ? `${title} - Easypu 简谱` : 'Easypu 简谱制作平台';
+  }, [score.title]);
+
   const handlePrint = () => {
+    const cleanTitle = (score.title || '').trim() || '无标题简谱';
+    // 打印与导出 PDF 时设置 document.title，现代浏览器会自动以此作为默认 PDF 文件名
+    document.title = cleanTitle;
+
+    const handleAfterPrint = () => {
+      window.removeEventListener('afterprint', handleAfterPrint);
+      document.title = `${cleanTitle} - Easypu 简谱`;
+    };
+    window.addEventListener('afterprint', handleAfterPrint);
+
     window.print();
   };
 
