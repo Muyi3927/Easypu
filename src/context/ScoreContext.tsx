@@ -870,15 +870,21 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
 
     copiedMeasures.forEach((copiedM, offset) => {
       const targetIndex = startIndex + offset;
+      const isLastCopied = offset === copiedMeasures.length - 1;
+      const originalTargetBreak = targetIndex < newMeasures.length ? newMeasures[targetIndex].isBreak : false;
+
       const clonedMeasure: Measure = {
         id: uuidv4(),
         notes: copiedM.notes.map(n => ({
           ...n,
           id: uuidv4()
         })),
-        isBreak: targetIndex < newMeasures.length ? newMeasures[targetIndex].isBreak : (offset === copiedMeasures.length - 1 ? copiedM.isBreak : false),
+        // 严格保持复制源的换行格式（例如复制 3 行：7, 8, 7 小节，粘贴后完全保持该 7, 8, 7 换行布局）
+        isBreak: copiedM.isBreak !== undefined ? copiedM.isBreak : (isLastCopied ? (originalTargetBreak || false) : false),
         barlineLeft: copiedM.barlineLeft,
-        barlineRight: copiedM.barlineRight
+        barlineRight: copiedM.barlineRight,
+        lineAnnotation: copiedM.lineAnnotation,
+        lineAnnotations: copiedM.lineAnnotations ? [...copiedM.lineAnnotations] : undefined
       };
 
       if (targetIndex < newMeasures.length) {
