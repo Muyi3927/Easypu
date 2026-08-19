@@ -135,9 +135,20 @@ async function ensureD1Tables(db: D1Database): Promise<void> {
       )
     `).run();
 
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS verification_send_logs (
+        id TEXT PRIMARY KEY,
+        ip TEXT NOT NULL,
+        email TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    `).run();
+
     try {
       await db.prepare('CREATE INDEX IF NOT EXISTS idx_users_canonical ON users(canonical_email)').run();
       await db.prepare('CREATE INDEX IF NOT EXISTS idx_reg_ip_time ON registration_logs(ip, created_at)').run();
+      await db.prepare('CREATE INDEX IF NOT EXISTS idx_send_ip_time ON verification_send_logs(ip, created_at)').run();
+      await db.prepare('CREATE INDEX IF NOT EXISTS idx_send_email_time ON verification_send_logs(email, created_at)').run();
     } catch {
       // 索引已存在
     }
@@ -298,8 +309,63 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }
       }
 
-      // 6. 发信频率冷却检查 (同一邮箱 60 秒内只能获取一次)
+      // 6. IP 与邮箱全方位风控拦截（全面保护 Resend 邮件配额，防止恶意刷量消耗）
+      const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
+
       if (db) {
+        const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+        // 6.1 同一 IP 10 分钟最多发送 3 次
+        const ipTenMinRow: any = await db
+          .prepare('SELECT count(*) as cnt FROM verification_send_logs WHERE ip = ? AND created_at > ?')
+          .bind(clientIp, tenMinAgo)
+          .first();
+        if (ipTenMinRow && ipTenMinRow.cnt >= 3) {
+          return new Response(
+            JSON.stringify({ error: '当前网络发送验证码过于频繁，为保护系统安全，请稍候 10 分钟后再试。' }),
+            { status: 429, headers }
+          );
+        }
+
+        // 6.2 同一 IP 1 小时最多发送 5 次
+        const ipHourRow: any = await db
+          .prepare('SELECT count(*) as cnt FROM verification_send_logs WHERE ip = ? AND created_at > ?')
+          .bind(clientIp, oneHourAgo)
+          .first();
+        if (ipHourRow && ipHourRow.cnt >= 5) {
+          return new Response(
+            JSON.stringify({ error: '当前网络 1 小时内发送验证码次数已达上限（最多 5 次），请稍后再试。' }),
+            { status: 429, headers }
+          );
+        }
+
+        // 6.3 同一 IP 24 小时最多发送 10 次
+        const ipDayRow: any = await db
+          .prepare('SELECT count(*) as cnt FROM verification_send_logs WHERE ip = ? AND created_at > ?')
+          .bind(clientIp, oneDayAgo)
+          .first();
+        if (ipDayRow && ipDayRow.cnt >= 10) {
+          return new Response(
+            JSON.stringify({ error: '当前网络今日发送验证码次数已达上限（24 小时最多 10 次），请明天再试。' }),
+            { status: 429, headers }
+          );
+        }
+
+        // 6.4 同一邮箱 24 小时最多获取 5 次验证码
+        const emailDayRow: any = await db
+          .prepare('SELECT count(*) as cnt FROM verification_send_logs WHERE LOWER(email) = LOWER(?) AND created_at > ?')
+          .bind(emailLower, oneDayAgo)
+          .first();
+        if (emailDayRow && emailDayRow.cnt >= 5) {
+          return new Response(
+            JSON.stringify({ error: '该邮箱今日获取验证码次数已达上限（最多 5 次），请明天再试或直接登录。' }),
+            { status: 429, headers }
+          );
+        }
+
+        // 6.5 单邮箱 60 秒防刷冷却
         const existingCode: any = await db
           .prepare('SELECT created_at FROM email_verifications WHERE email = ?')
           .bind(emailLower)
@@ -415,11 +481,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }
       }
 
-      // 9. 保存验证码哈希到 D1 / R2
+      // 9. 保存验证码哈希与发信风控审计日志到 D1 / R2
       if (db) {
         await db
           .prepare('INSERT OR REPLACE INTO email_verifications (email, code_hash, expires_at, created_at) VALUES (?, ?, ?, ?)')
           .bind(emailLower, codeHash, expiresAt, nowIso)
+          .run();
+
+        // 记录发信日志，作为后续 IP 与单邮箱速率限制依据
+        await db
+          .prepare('INSERT INTO verification_send_logs (id, ip, email, created_at) VALUES (?, ?, ?, ?)')
+          .bind(`send_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, clientIp, emailLower, nowIso)
           .run();
       } else if (bucket) {
         await bucket.put(

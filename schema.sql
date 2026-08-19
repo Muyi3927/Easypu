@@ -60,10 +60,20 @@ CREATE TABLE IF NOT EXISTS email_verifications (
   created_at TEXT NOT NULL
 );
 
+-- 6. 邮件发送审计日志表 (IP 与单邮箱发信频率与配额防护)
+CREATE TABLE IF NOT EXISTS verification_send_logs (
+  id TEXT PRIMARY KEY,
+  ip TEXT NOT NULL,
+  email TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 -- 创建索引以加速查询与风控
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_canonical ON users(canonical_email);
 CREATE INDEX IF NOT EXISTS idx_reg_ip_time ON registration_logs(ip, created_at);
+CREATE INDEX IF NOT EXISTS idx_send_ip_time ON verification_send_logs(ip, created_at);
+CREATE INDEX IF NOT EXISTS idx_send_email_time ON verification_send_logs(email, created_at);
 CREATE INDEX IF NOT EXISTS idx_scores_user_id ON scores(user_id);
 CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id);
