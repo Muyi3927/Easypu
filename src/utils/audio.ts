@@ -45,9 +45,10 @@ export const preloadPianoSoundfont = async () => {
     if (!response.ok) return;
 
     const text = await response.text();
-    // 解析 MIDI.js Soundfont 格式
-    const jsonStr = text.replace(/^MIDI\.Soundfont\.acoustic_grand_piano\s*=\s*/, '').replace(/;?\s*$/, '');
-    const soundData: Record<string, string> = JSON.parse(jsonStr);
+    // 安全提取 Soundfont JSON 数据对象
+    const match = text.match(/MIDI\.Soundfont\.acoustic_grand_piano\s*=\s*(\{[\s\S]*\});?\s*$/) || text.match(/(\{[\s\S]*\})/);
+    if (!match) return;
+    const soundData: Record<string, string> = JSON.parse(match[1]);
 
     for (const [noteName, dataUri] of Object.entries(soundData)) {
       try {
