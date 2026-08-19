@@ -101,7 +101,7 @@ export const ScoreEditor = () => {
     }
   }, [isPreviewMode]);
 
-  // Calculate svg lines for ties and slurs per page
+  // Calculate svg lines for ties and slurs per page (支持缩放预览与高保真打印导出)
   useEffect(() => {
     const computeLines = () => {
       const flattenedNotes = score.measures.flatMap(m => m.notes);
@@ -109,6 +109,8 @@ export const ScoreEditor = () => {
 
       const pageContentEls = document.querySelectorAll('.a4-page-content');
       if (!pageContentEls || pageContentEls.length === 0) return;
+
+      const zoom = (isPreviewMode && previewZoom && previewZoom > 0) ? previewZoom : 1.0;
 
       const getPageInfoForEl = (el: HTMLElement) => {
         for (let pIdx = 0; pIdx < pageContentEls.length; pIdx++) {
@@ -136,10 +138,10 @@ export const ScoreEditor = () => {
               const startCore = startEl.querySelector('.note-core');
               const endCore = endEl.querySelector('.note-core');
 
-              const sx = startRect.left - pageRect.left + startRect.width / 2;
-              const ex = endRect.left - pageRect.left + endRect.width / 2;
-              const sy = (startCore ? startCore.getBoundingClientRect().top : startRect.top) - pageRect.top + (startCore ? startCore.getBoundingClientRect().height : startRect.height) + 5;
-              const ey = (endCore ? endCore.getBoundingClientRect().top : endRect.top) - pageRect.top + (endCore ? endCore.getBoundingClientRect().height : endRect.height) + 5;
+              const sx = (startRect.left - pageRect.left) / zoom + (startRect.width / zoom) / 2;
+              const ex = (endRect.left - pageRect.left) / zoom + (endRect.width / zoom) / 2;
+              const sy = ((startCore ? startCore.getBoundingClientRect().top : startRect.top) - pageRect.top) / zoom + ((startCore ? startCore.getBoundingClientRect().height : startRect.height) / zoom) + 5;
+              const ey = ((endCore ? endCore.getBoundingClientRect().top : endRect.top) - pageRect.top) / zoom + ((endCore ? endCore.getBoundingClientRect().height : endRect.height) / zoom) + 5;
 
               const path = `M ${sx} ${sy} Q ${(sx + ex) / 2} ${sy + 15} ${ex} ${ey}`;
               if (!newPageLines[pIdx]) newPageLines[pIdx] = [];
@@ -183,12 +185,12 @@ export const ScoreEditor = () => {
                 const startLineRect = startLineEl ? startLineEl.getBoundingClientRect() : startPageRect;
                 const endLineRect = endLineEl ? endLineEl.getBoundingClientRect() : endPageRect;
 
-                const sx = startRect.left - startPageRect.left + startRect.width / 2;
-                const sy = startRect.top - startPageRect.top;
-                const ex = endRect.left - endPageRect.left + endRect.width / 2;
-                const ey = endRect.top - endPageRect.top;
+                const sx = (startRect.left - startPageRect.left) / zoom + (startRect.width / zoom) / 2;
+                const sy = (startRect.top - startPageRect.top) / zoom;
+                const ex = (endRect.left - endPageRect.left) / zoom + (endRect.width / zoom) / 2;
+                const ey = (endRect.top - endPageRect.top) / zoom;
 
-                // Find max octave among all notes in this slur segment
+                // 查找该连音线段内所有音符的最大八度以统一定位弧线高度
                 let maxOctave = Math.max(0, note.octave || 0, endNote.octave || 0);
                 for (let k = i; k <= endIndex; k++) {
                   if (flattenedNotes[k]) {
@@ -198,12 +200,12 @@ export const ScoreEditor = () => {
                 const unifiedTopOffset = 8 + maxOctave * 6;
 
                 const isCrossPage = startPageInfo.pageIndex !== endPageInfo.pageIndex;
-                const isCrossLine = isCrossPage || Math.abs(endRect.top - startRect.top) > startRect.height * 1.5;
+                const isCrossLine = isCrossPage || Math.abs(endRect.top - startRect.top) > (startRect.height / zoom) * 1.5;
 
                 if (isCrossLine) {
-                  // Line 1: On start note's page/line
+                  // 第 1 段：起始小节所在行
                   const p1Idx = startPageInfo.pageIndex;
-                  const line1Right = startLineRect.right - startPageRect.left - 6;
+                  const line1Right = (startLineRect.right - startPageRect.left) / zoom - 6;
                   const distance1 = Math.max(line1Right - sx, 25);
                   const curveHeight1 = Math.min(distance1 * 0.16, 16);
                   const startY = sy - unifiedTopOffset;
@@ -215,9 +217,9 @@ export const ScoreEditor = () => {
                   if (!newPageLines[p1Idx]) newPageLines[p1Idx] = [];
                   newPageLines[p1Idx].push({ id: `slur-${note.id}-1`, path: path1, isSlur: true });
 
-                  // Line 2: On end note's page/line
+                  // 第 2 段：结束小节所在行
                   const p2Idx = endPageInfo.pageIndex;
-                  const line2Left = endLineRect.left - endPageRect.left + 6;
+                  const line2Left = (endLineRect.left - endPageRect.left) / zoom + 6;
                   const distance2 = Math.max(ex - line2Left, 25);
                   const curveHeight2 = Math.min(distance2 * 0.16, 16);
                   const endY = ey - unifiedTopOffset;
@@ -229,7 +231,7 @@ export const ScoreEditor = () => {
                   if (!newPageLines[p2Idx]) newPageLines[p2Idx] = [];
                   newPageLines[p2Idx].push({ id: `slur-${note.id}-2`, path: path2, isSlur: true });
                 } else {
-                  // Within same page & line
+                  // 同一行内连线
                   const pIdx = startPageInfo.pageIndex;
                   const distance = Math.abs(ex - sx);
                   const curveHeight = Math.min(Math.max(distance * 0.15, 10), 24);
@@ -252,11 +254,13 @@ export const ScoreEditor = () => {
 
     const timeoutId = setTimeout(computeLines, 60);
     window.addEventListener('resize', computeLines);
+    window.addEventListener('beforeprint', computeLines);
     return () => {
       clearTimeout(timeoutId);
       window.removeEventListener('resize', computeLines);
+      window.removeEventListener('beforeprint', computeLines);
     };
-  }, [score.measures, score.baseFontSize, score.lineHeight, score.pageMarginTop, score.pageMarginLeft, score.pageMarginRight, score.pageMarginBottom, score.pageWidth, isPreviewMode]);
+  }, [score.measures, score.baseFontSize, score.lineHeight, score.pageMarginTop, score.pageMarginLeft, score.pageMarginRight, score.pageMarginBottom, score.pageWidth, isPreviewMode, previewZoom]);
 
   // Group measures into lines based on isBreak
   const lines: Measure[][] = [];
@@ -1384,7 +1388,7 @@ export const ScoreEditor = () => {
           >
             <svg className="score-svg-overlay">
               {(pageSvgLines[page.pageIndex] || []).map(line => (
-                <path key={line.id} d={line.path} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+                <path key={line.id} d={line.path} fill="none" stroke="#1e293b" strokeWidth="2.2" strokeLinecap="round" />
               ))}
             </svg>
 
