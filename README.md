@@ -14,7 +14,7 @@
 **新一代现代化、轻量高效的专业简谱在线排版与云端创作平台**  
 支持实体键盘快速录入 · 3D 拟真琴键发音 · 智能动态 A4 分页 · 矢量 SVG 高清渲染 · 1:1 无损 PDF 导出 · Cloudflare 全栈无服务器云端存储
 
-🔗 **在线演示体验**：[https://pu.fangwengudao.us.kg](https://pu.fangwengudao.us.kg)
+🔗 **在线演示体验**：[https://easypu.fangwengudao.us.kg](https://easypu.fangwengudao.us.kg)
 
 </div>
 

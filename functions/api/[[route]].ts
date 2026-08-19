@@ -222,7 +222,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           d1Bound: !!db,
           resendConfigured: !!env.RESEND_API_KEY,
           maxScoresPerUser: MAX_SCORES_PER_USER,
-          domain: 'pu.fangwengudao.us.kg',
+          domain: env.CLOUDFLARE_DOMAIN || 'easypu.fangwengudao.us.kg',
           timestamp: new Date().toISOString(),
         }),
         { headers }
@@ -355,7 +355,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
                   <p style="color: #64748b; font-size: 13px; margin: 0;">• 如非本人操作，请忽略此邮件，您的账号信息安全不会受到影响。</p>
                 </div>
                 <div style="background: #f1f5f9; padding: 14px 28px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0;">
-                  服务站点: pu.fangwengudao.us.kg · 本邮件由系统自动发送，请勿直接回复
+                  服务站点: ${env.CLOUDFLARE_DOMAIN || 'easypu.fangwengudao.us.kg'} · 本邮件由系统自动发送，请勿直接回复
                 </div>
               </div>
             `,

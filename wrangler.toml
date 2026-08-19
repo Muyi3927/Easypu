@@ -16,7 +16,7 @@ database_id = "853d61e5-ed5c-4147-ba04-c42a73c70f25"
 # 环境变量配置 (公开非敏感变量)
 # 敏感密钥 (如 RESEND_API_KEY) 请在 Cloudflare 控制台添加为「机密 (Secret)」
 [vars]
-CLOUDFLARE_DOMAIN = "pu.fangwengudao.us.kg"
+CLOUDFLARE_DOMAIN = "easypu.fangwengudao.us.kg"
 APP_NAME = "Easypu"
 RESEND_FROM_EMAIL = "Easypu 简谱 <verify@fangwengudao.us.kg>"
 
