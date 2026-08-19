@@ -323,6 +323,7 @@ class StorageService {
       annotationFont: scoreData.annotationFont || { fontFamily: '黑体', fontSize: 24, color: '#1e293b' },
       barlineSize: scoreData.barlineSize || 2,
       barlineColor: scoreData.barlineColor || '#3d3d3d',
+      octaveDotSize: scoreData.octaveDotSize || 4,
       showPageNumber: scoreData.showPageNumber !== undefined ? scoreData.showPageNumber : true,
       pageNumberStyle: scoreData.pageNumberStyle || '1/2',
       pageNumberFont: scoreData.pageNumberFont || { fontFamily: '思源黑体', fontSize: 12, color: '#999999' },

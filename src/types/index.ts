@@ -55,6 +55,7 @@ export interface Score {
   // 小节样式
   barlineSize: number; // 1-6 档位
   barlineColor: string;
+  octaveDotSize?: number; // 高低音点大小 (px)
   // 页码
   showPageNumber: boolean;
   pageNumberStyle: string;

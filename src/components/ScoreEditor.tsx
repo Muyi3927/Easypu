@@ -1255,6 +1255,40 @@ export const ScoreEditor = () => {
                           <span>{score.barlineColor}</span>
                         </div>
                       </div>
+
+                      <div className="form-group">
+                        <label>高低音点大小 (八度点)</label>
+                        <div className="page-width-control">
+                          <div className="page-width-slider-row">
+                            <input
+                              type="range"
+                              min="2"
+                              max="8"
+                              step="0.5"
+                              value={score.octaveDotSize || 4}
+                              onChange={e => setScore({ ...score, octaveDotSize: parseFloat(e.target.value) || 4 })}
+                            />
+                            <span className="range-value">{score.octaveDotSize || 4}px</span>
+                          </div>
+                          <div className="page-width-presets">
+                            {[
+                              { label: '精细 (2.5px)', value: 2.5 },
+                              { label: '标准 (4px)', value: 4 },
+                              { label: '大号 (5.5px)', value: 5.5 },
+                              { label: '特大 (7px)', value: 7 },
+                            ].map(preset => (
+                              <button
+                                key={preset.value}
+                                type="button"
+                                className={`preset-chip ${Math.abs((score.octaveDotSize || 4) - preset.value) < 0.3 ? 'active' : ''}`}
+                                onClick={() => setScore({ ...score, octaveDotSize: preset.value })}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1581,6 +1615,7 @@ export const ScoreEditor = () => {
                                         isActive={!isPreviewMode && activeTab === 'notes' && activeNoteId === note.id}
                                         isPlaying={playingNoteId === note.id}
                                         noteFont={score.noteFont}
+                                        octaveDotSize={score.octaveDotSize || 4}
                                         isBeatEnd={isBeatEnd}
                                         isPreviewMode={isPreviewMode}
                                         onClick={() => {
@@ -1860,6 +1895,7 @@ const NoteBlock = ({
   isActive,
   isPlaying,
   noteFont,
+  octaveDotSize = 4,
   isBeatEnd,
   isPreviewMode,
   onClick
@@ -1868,6 +1904,7 @@ const NoteBlock = ({
   isActive: boolean;
   isPlaying: boolean;
   noteFont: FontSettings;
+  octaveDotSize?: number;
   isBeatEnd: boolean;
   isPreviewMode?: boolean;
   onClick: () => void;
@@ -1891,7 +1928,17 @@ const NoteBlock = ({
 
         {note.octave > 0 && note.pitch > 0 && (
           <div className="octave-dots top">
-            {Array.from({ length: note.octave }).map((_, i) => <span key={i} className="dot"></span>)}
+            {Array.from({ length: note.octave }).map((_, i) => (
+              <span
+                key={i}
+                className="dot"
+                style={{
+                  width: `${octaveDotSize}px`,
+                  height: `${octaveDotSize}px`,
+                  backgroundColor: noteFont.color || 'currentColor'
+                }}
+              ></span>
+            ))}
           </div>
         )}
 
@@ -1909,7 +1956,17 @@ const NoteBlock = ({
 
         {note.octave < 0 && note.pitch > 0 && (
           <div className="octave-dots bottom">
-            {Array.from({ length: Math.abs(note.octave) }).map((_, i) => <span key={i} className="dot"></span>)}
+            {Array.from({ length: Math.abs(note.octave) }).map((_, i) => (
+              <span
+                key={i}
+                className="dot"
+                style={{
+                  width: `${octaveDotSize}px`,
+                  height: `${octaveDotSize}px`,
+                  backgroundColor: noteFont.color || 'currentColor'
+                }}
+              ></span>
+            ))}
           </div>
         )}
 
