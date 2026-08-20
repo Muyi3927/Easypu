@@ -1383,12 +1383,17 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
 
   const updateNoteChord = (noteId: string, chord: string) => {
     const currentScore = scoreRef.current;
-    const clean = chord ? chord.trim() : '';
+    const clean = chord.trim();
     const newMeasures = currentScore.measures.map(measure => ({
       ...measure,
-      notes: measure.notes.map(note =>
-        note.id === noteId ? { ...note, chord: clean || undefined } : note
-      )
+      notes: measure.notes.map(note => {
+        if (note.id === noteId) {
+          // 如果音符是空白占位符 (-2)，不添加和弦
+          if (note.pitch === -2 && clean) return note;
+          return { ...note, chord: clean || undefined };
+        }
+        return note;
+      })
     }));
     applyScoreUpdate({ ...currentScore, measures: newMeasures });
   };
@@ -1399,17 +1404,30 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
     let chordIdx = 0;
 
     const newMeasures = currentScore.measures.map((measure) => {
-      const firstValidNote = measure.notes.find(n => n.pitch !== -2) || measure.notes[0];
+      // 仅在有实际有效输入音符 (pitch !== -2) 的小节分配和弦
+      const firstValidNote = measure.notes.find(n => n.pitch !== -2);
+      if (!firstValidNote) {
+        // 空白小节不自动标注和弦，并清理历史和弦
+        return {
+          ...measure,
+          notes: measure.notes.map(note => {
+            const { chord, ...rest } = note;
+            return rest as Note;
+          })
+        };
+      }
+
       const assignedChord = chordNames[chordIdx % chordNames.length];
       chordIdx++;
 
       return {
         ...measure,
         notes: measure.notes.map((note) => {
-          if (firstValidNote && note.id === firstValidNote.id) {
+          if (note.id === firstValidNote.id) {
             return { ...note, chord: assignedChord };
           }
-          return note;
+          const { chord, ...rest } = note;
+          return rest as Note;
         })
       };
     });

@@ -236,6 +236,25 @@ export const Toolbar = () => {
       const startBeat = currentStartBeatInMeasure;
       currentStartBeatInMeasure = 0; // 重置为 0，后续小节都从 0 拍开始
 
+      // 检查当前小节是否包含任何可播放的音符或休止符 (pitch !== -2)
+      const isNotePlayable = (n: Note) => n.pitch !== -2;
+      const measureHasNotes = measure.notes.some(isNotePlayable) || (score.hasSecondVoice && (measure.secondVoiceNotes || []).some(isNotePlayable));
+
+      if (!measureHasNotes) {
+        // 检查全谱后续是否还有任何带音符的小节
+        const hasMoreNotesLater = score.measures.slice(currentMi + 1).some(m =>
+          m.notes.some(isNotePlayable) || (score.hasSecondVoice && (m.secondVoiceNotes || []).some(isNotePlayable))
+        );
+        if (!hasMoreNotesLater) {
+          // 全曲后续无任何音符，立即结束播放
+          break;
+        } else {
+          // 后续还有音符，直接跳过当前纯空白小节，0 延迟进入下一小节
+          currentMi++;
+          continue;
+        }
+      }
+
       // 计算当前小节在全局中的音符起始索引
       let globalV1Idx = 0;
       let globalV2Idx = 0;
@@ -290,9 +309,29 @@ export const Toolbar = () => {
         const v1Key = score.voice1KeySignature || score.keySignature;
         const v2Key = score.voice2KeySignature || score.keySignature;
 
-        // 1. 声部 1 在当前时间点发音 (主旋律 100% 音量，使用声部 1 调号)
         const v1Ev = v1Events.find(e => Math.abs(e.start - currT) < 0.001);
-        if (v1Ev && v1Ev.note.pitch !== -2) {
+        const v2Ev = v2Events.find(e => Math.abs(e.start - currT) < 0.001);
+
+        const v1HasSound = v1Ev && v1Ev.note.pitch !== -2;
+        const v2HasSound = v2Ev && v2Ev.note.pitch !== -2;
+
+        // 如果当前时间切片两个声部都是空白占位符 (-2)
+        if (!v1HasSound && !v2HasSound) {
+          const hasNotesLaterInMeasure =
+            v1Events.some(e => e.start > currT && e.note.pitch !== -2) ||
+            v2Events.some(e => e.start > currT && e.note.pitch !== -2);
+
+          if (!hasNotesLaterInMeasure) {
+            // 本小节后半段全为空白占位符，直接跳出本小节进入下一小节
+            break;
+          } else {
+            // 跳过当前空白占位符的等待，直接前进到下一个有音符的时间切片
+            continue;
+          }
+        }
+
+        // 1. 声部 1 在当前时间点发音 (主旋律 100% 音量，使用声部 1 调号)
+        if (v1HasSound && v1Ev) {
           setPlayingNoteId(v1Ev.note.id);
           if (v1Ev.note.pitch > 0 && !v1Analysis.isTied[v1Ev.globalIdx]) {
             const playDur = v1Analysis.tiedDur[v1Ev.globalIdx] || v1Ev.beats;
@@ -306,8 +345,7 @@ export const Toolbar = () => {
         }
 
         // 2. 声部 2 (副声部/低音声部) 在当前时间点同步发音 (60% 音量柔化衬托，使用声部 2 独立调号)
-        const v2Ev = v2Events.find(e => Math.abs(e.start - currT) < 0.001);
-        if (v2Ev && v2Ev.note.pitch > 0 && !v2Analysis.isTied[v2Ev.globalIdx]) {
+        if (v2HasSound && v2Ev && v2Ev.note.pitch > 0 && !v2Analysis.isTied[v2Ev.globalIdx]) {
           const playDur2 = v2Analysis.tiedDur[v2Ev.globalIdx] || v2Ev.beats;
           playNote(v2Ev.note.pitch, v2Ev.note.octave, v2Ev.note.accidental, v2Key, playDur2, tempo, 0.6);
         }

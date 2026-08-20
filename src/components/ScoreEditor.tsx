@@ -2047,8 +2047,8 @@ const NoteBlock = ({
       style={{ flex: note.duration }}
     >
       <div className="note-core">
-        {/* 和弦符号显示 (Chord Symbol) - 统一定位在最高层，绝不与连音线/高音点重叠 */}
-        {showChords !== false && note.chord && (
+        {/* 和弦符号显示 (Chord Symbol) - 统一定位在最高层，空白占位符绝不显示和弦 */}
+        {showChords !== false && !isPlaceholder && !isExtension && note.chord && (
           <div
             className="note-chord-badge"
             style={{
