@@ -398,11 +398,16 @@ export const ScoreEditor = () => {
   const keyDisplay = getKeyDisplay();
   const timeDisplay = getTimeDisplay();
 
-  // 获取当前激活的音符
+  // 获取当前激活的音符 (完整支持第一声部与第二声部)
   const activeNote = useMemo(() => {
     if (!activeMeasureId || !activeNoteId) return null;
     const measure = score.measures.find(m => m.id === activeMeasureId);
-    return measure?.notes.find(n => n.id === activeNoteId) || null;
+    if (!measure) return null;
+    const inV1 = measure.notes.find(n => n.id === activeNoteId);
+    if (inV1) return inV1;
+    const inV2 = measure.secondVoiceNotes?.find(n => n.id === activeNoteId);
+    if (inV2) return inV2;
+    return null;
   }, [score.measures, activeMeasureId, activeNoteId]);
 
   // 快捷键支持：0输入休止符，-输入延音线，1-7输入音符(带发音)，.输入附点，上下键升降八度，左右键移动光标
@@ -448,14 +453,14 @@ export const ScoreEditor = () => {
         if (activeNote && activeNote.pitch > 0) {
           const newAcc = activeNote.accidental === targetAcc ? null : targetAcc;
           updateActiveNote({ accidental: newAcc }, false);
-          playNote(activeNote.pitch, activeNote.octave, newAcc, score.keySignature, activeNote.duration, score.tempo || 70);
+          playNote(activeNote.pitch, activeNote.octave, newAcc, score.keySignature, activeNote.duration, score.tempo || 120);
         } else {
           pendingAccidentalRef.current = pendingAccidentalRef.current === targetAcc ? null : targetAcc;
         }
         return;
       }
 
-      // 4. ↑ 升高八度 / ↓ 降低八度（严格在当前光标位作用，绝不跳回上一位；如需修改上一位按 ← 移动光标）
+      // 4. ↑ 升高八度 / ↓ 降低八度（严格在当前光标位作用）
       if (key === 'ArrowUp' || key === 'ArrowDown') {
         e.preventDefault();
         const isUp = key === 'ArrowUp';
@@ -465,10 +470,10 @@ export const ScoreEditor = () => {
           const currentOct = activeNote.octave || 0;
           const newOct = isUp ? Math.min(2, currentOct + 1) : Math.max(-2, currentOct - 1);
           updateActiveNote({ octave: newOct }, false);
-          playNote(activeNote.pitch, newOct, activeNote.accidental, score.keySignature, activeNote.duration, score.tempo || 70);
+          playNote(activeNote.pitch, newOct, activeNote.accidental, score.keySignature, activeNote.duration, score.tempo || 120);
           pendingOctaveRef.current = newOct;
         } else {
-          // 当前位置为占位符：前置预设当前位置的录入八度（按一下高一+1，连按两下高二+2；向下同理-1, -2）
+          // 当前位置为占位符：前置预设当前位置的录入八度
           if (isUp) {
             pendingOctaveRef.current = pendingOctaveRef.current <= 0 ? 1 : Math.min(2, pendingOctaveRef.current + 1);
           } else {
@@ -501,7 +506,7 @@ export const ScoreEditor = () => {
         pendingAccidentalRef.current = null;
 
         // 播放键盘敲击发音反馈
-        playNote(numPitch, currentOctave, currentAccidental, score.keySignature, finalDuration, score.tempo || 70);
+        playNote(numPitch, currentOctave, currentAccidental, score.keySignature, finalDuration, score.tempo || 120);
 
         updateActiveNote({ pitch: numPitch, octave: currentOctave, accidental: currentAccidental, duration: finalDuration, isDotted: noteWasDotted });
         return;
@@ -522,15 +527,17 @@ export const ScoreEditor = () => {
         return;
       }
 
-      // 7. ← 左移光标 / → 右移光标
+      // 7. ← 左移光标 / → 右移光标 (在当前声部轨道内顺畅移动)
       if (key === 'ArrowLeft' || key === 'ArrowRight') {
         pendingOctaveRef.current = 0;
         pendingAccidentalRef.current = null;
         if (!activeMeasureId || !activeNoteId) return;
-        const allNotesList: { measureId: string; noteId: string }[] = [];
+        const allNotesList: { measureId: string; noteId: string; voice: 1 | 2 }[] = [];
+        const isV2 = activeVoice === 2 && score.hasSecondVoice;
         for (const m of score.measures) {
-          for (const n of m.notes) {
-            allNotesList.push({ measureId: m.id, noteId: n.id });
+          const list = isV2 && m.secondVoiceNotes && m.secondVoiceNotes.length > 0 ? m.secondVoiceNotes : m.notes;
+          for (const n of list) {
+            allNotesList.push({ measureId: m.id, noteId: n.id, voice: isV2 ? 2 : 1 });
           }
         }
         const currIdx = allNotesList.findIndex(item => item.noteId === activeNoteId);
@@ -538,44 +545,50 @@ export const ScoreEditor = () => {
           e.preventDefault();
           if (key === 'ArrowLeft' && currIdx > 0) {
             const prev = allNotesList[currIdx - 1];
-            selectNote(prev.measureId, prev.noteId);
+            selectNote(prev.measureId, prev.noteId, prev.voice);
           } else if (key === 'ArrowRight' && currIdx < allNotesList.length - 1) {
             const next = allNotesList[currIdx + 1];
-            selectNote(next.measureId, next.noteId);
+            selectNote(next.measureId, next.noteId, next.voice);
           }
         }
         return;
       }
 
-      // 8. Backspace / Delete 删除当前音符或回退删除上一音符
+      // 8. Backspace / Delete 删除当前音符或回退删除上一音符 (完整支持声部 1 与声部 2)
       if (key === 'Backspace' || key === 'Delete') {
         pendingOctaveRef.current = 0;
         pendingAccidentalRef.current = null;
         e.preventDefault();
-        const allNotesList: { measureId: string; noteId: string; note: Note }[] = [];
+        const allNotesList: { measureId: string; noteId: string; note: Note; voice: 1 | 2 }[] = [];
+        const isV2 = activeVoice === 2 && score.hasSecondVoice;
         for (const m of score.measures) {
-          for (const n of m.notes) {
-            allNotesList.push({ measureId: m.id, noteId: n.id, note: n });
+          const list = isV2 && m.secondVoiceNotes && m.secondVoiceNotes.length > 0 ? m.secondVoiceNotes : m.notes;
+          for (const n of list) {
+            allNotesList.push({ measureId: m.id, noteId: n.id, note: n, voice: isV2 ? 2 : 1 });
           }
         }
         const currIdx = allNotesList.findIndex(item => item.noteId === activeNoteId);
         if (currIdx !== -1) {
           const currentItem = allNotesList[currIdx];
           if (currentItem.note.pitch !== -2) {
-            // 当前音符有内容，重置为占位符
+            // 当前音符有实际内容，重置为占位符 (保持当前位置)
             updateActiveNote({ pitch: -2, octave: 0, accidental: null, isDotted: false }, false);
           } else if (currIdx > 0) {
             // 当前音符已是空白占位符，光标回退到上一个音符并将其清空
             const prevItem = allNotesList[currIdx - 1];
-            selectNote(prevItem.measureId, prevItem.noteId);
+            selectNote(prevItem.measureId, prevItem.noteId, prevItem.voice);
             const prevMeasure = score.measures.find(m => m.id === prevItem.measureId);
             if (prevMeasure) {
-              const updatedNotes = prevMeasure.notes.map(n =>
+              const targetList = isV2 ? (prevMeasure.secondVoiceNotes || []) : prevMeasure.notes;
+              const updatedNotes = targetList.map(n =>
                 n.id === prevItem.noteId ? { ...n, pitch: -2, octave: 0, accidental: null, isDotted: false } : n
               );
               setScore(prev => ({
                 ...prev,
-                measures: prev.measures.map(m => m.id === prevItem.measureId ? { ...m, notes: updatedNotes } : m)
+                measures: prev.measures.map(m => m.id === prevItem.measureId ? {
+                  ...m,
+                  ...(isV2 ? { secondVoiceNotes: updatedNotes } : { notes: updatedNotes })
+                } : m)
               }));
             }
           }

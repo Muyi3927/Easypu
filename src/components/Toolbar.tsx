@@ -57,15 +57,18 @@ export const Toolbar = () => {
 
   const seekTargetNoteIdRef = useRef<string | null>(null);
   const interruptSleepRef = useRef<(() => void) | null>(null);
+  const prevActiveNoteIdRef = useRef<string | null>(activeNoteId);
 
   // 监听播放中的音符点击跳转 (Seek)
   useEffect(() => {
-    if (isPlaying && activeNoteId) {
+    // 仅在已处于播放状态下、且 activeNoteId 确实被用户点击改变时才触发跳转
+    if (isPlaying && activeNoteId && prevActiveNoteIdRef.current !== activeNoteId) {
       seekTargetNoteIdRef.current = activeNoteId;
       if (interruptSleepRef.current) {
         interruptSleepRef.current();
       }
     }
+    prevActiveNoteIdRef.current = activeNoteId;
   }, [activeNoteId, isPlaying]);
 
   const stopScore = () => {
@@ -79,6 +82,7 @@ export const Toolbar = () => {
 
   const playScore = async () => {
     if (isPlaying) return;
+    seekTargetNoteIdRef.current = null;
     setIsPlaying(true);
     playRef.current = true;
 
@@ -169,7 +173,6 @@ export const Toolbar = () => {
     score.measures.forEach(m => {
       m.notes.forEach(n => allVoice1Notes.push(n));
     });
-
     const v1Analysis = analyzeTrackTies(allVoice1Notes);
 
     // 展平第二声部音符 (如果开启了第二声部)
@@ -181,31 +184,71 @@ export const Toolbar = () => {
     }
     const v2Analysis = analyzeTrackTies(allVoice2Notes);
 
-    // 确定播放起始小节/音符
-    let startMeasureIdx = 0;
-    if (activeMeasureId) {
-      const idx = score.measures.findIndex(m => m.id === activeMeasureId);
-      if (idx !== -1) startMeasureIdx = idx;
-    }
+    let currentMi = 0;
+    let currentStartBeatInMeasure = 0;
 
-    let globalV1Idx = 0;
-    let globalV2Idx = 0;
+    // 逐个小节进行双轨多复音时间分片播放 (支持点击任意音符即时 Seek 跳转)
+    while (currentMi < score.measures.length && playRef.current) {
+      // 检查是否有外部点击发起的即时跳转 (Seek)
+      if (seekTargetNoteIdRef.current) {
+        const targetId = seekTargetNoteIdRef.current;
+        seekTargetNoteIdRef.current = null;
 
-    // 前进到起始小节对应的全局索引
-    for (let mi = 0; mi < startMeasureIdx; mi++) {
-      globalV1Idx += score.measures[mi].notes.length;
-      if (score.hasSecondVoice) {
-        globalV2Idx += (score.measures[mi].secondVoiceNotes || []).length;
+        let foundMi = -1;
+        let foundStartBeat = 0;
+
+        for (let mi = 0; mi < score.measures.length; mi++) {
+          const m = score.measures[mi];
+          let t1 = 0;
+          for (const n of m.notes) {
+            if (n.id === targetId) {
+              foundMi = mi;
+              foundStartBeat = t1;
+              break;
+            }
+            t1 += getNoteBeats(n);
+          }
+          if (foundMi !== -1) break;
+
+          if (score.hasSecondVoice && m.secondVoiceNotes) {
+            let t2 = 0;
+            for (const n of m.secondVoiceNotes) {
+              if (n.id === targetId) {
+                foundMi = mi;
+                foundStartBeat = t2;
+                break;
+              }
+              t2 += getNoteBeats(n);
+            }
+          }
+          if (foundMi !== -1) break;
+        }
+
+        if (foundMi !== -1) {
+          currentMi = foundMi;
+          currentStartBeatInMeasure = foundStartBeat;
+        }
       }
-    }
 
-    // 逐个小节进行双轨多复音时间分片播放 (Time-Sliced Dual-Track Playback)
-    for (let mi = startMeasureIdx; mi < score.measures.length && playRef.current; mi++) {
-      const measure = score.measures[mi];
+      if (currentMi >= score.measures.length || !playRef.current) break;
+
+      const measure = score.measures[currentMi];
+      const startBeat = currentStartBeatInMeasure;
+      currentStartBeatInMeasure = 0; // 重置为 0，后续小节都从 0 拍开始
+
+      // 计算当前小节在全局中的音符起始索引
+      let globalV1Idx = 0;
+      let globalV2Idx = 0;
+      for (let mi = 0; mi < currentMi; mi++) {
+        globalV1Idx += score.measures[mi].notes.length;
+        if (score.hasSecondVoice) {
+          globalV2Idx += (score.measures[mi].secondVoiceNotes || []).length;
+        }
+      }
+
       const v1Notes = measure.notes;
       const v2Notes = score.hasSecondVoice ? (measure.secondVoiceNotes || []) : [];
 
-      // 构建该小节内的多轨事件时间轴
       let t1 = 0;
       const v1Events = v1Notes.map((n, idx) => {
         const start = t1;
@@ -224,51 +267,55 @@ export const Toolbar = () => {
         return { note: n, start, beats, globalIdx: gIdx, isVoice2: true };
       });
 
-      globalV1Idx += v1Notes.length;
-      globalV2Idx += v2Notes.length;
-
       const measureDurationBeats = Math.max(t1, t2, 1.0);
-      const uniqueTimestamps = Array.from(
+      const allTimestamps = Array.from(
         new Set([0, ...v1Events.map(e => e.start), ...v2Events.map(e => e.start)])
       ).sort((a, b) => a - b);
 
+      // 仅播放 >= startBeat 的时间切片
+      const uniqueTimestamps = allTimestamps.filter(t => t >= startBeat - 0.001);
+
+      let seekInterrupted = false;
+
       for (let ti = 0; ti < uniqueTimestamps.length && playRef.current; ti++) {
-        // 检查是否有外部点击音符发起的即时跳转请求 (Seek)
         if (seekTargetNoteIdRef.current) {
-          seekTargetNoteIdRef.current = null;
-          // 重新从被点击的位置重新计算 (下次播放)
-          break;
+          seekInterrupted = true;
+          break; // 进入外层循环重新定位到新小节与拍位
         }
 
         const currT = uniqueTimestamps[ti];
         const nextT = ti < uniqueTimestamps.length - 1 ? uniqueTimestamps[ti + 1] : measureDurationBeats;
         const sliceBeats = nextT - currT;
 
-        // 1. 声部 1 在当前时间点发音
+        // 1. 声部 1 在当前时间点发音 (主旋律 100% 音量)
         const v1Ev = v1Events.find(e => Math.abs(e.start - currT) < 0.001);
         if (v1Ev && v1Ev.note.pitch !== -2) {
           setPlayingNoteId(v1Ev.note.id);
           if (v1Ev.note.pitch > 0 && !v1Analysis.isTied[v1Ev.globalIdx]) {
             const playDur = v1Analysis.tiedDur[v1Ev.globalIdx] || v1Ev.beats;
-            playNote(v1Ev.note.pitch, v1Ev.note.octave, v1Ev.note.accidental, score.keySignature, playDur, tempo);
+            playNote(v1Ev.note.pitch, v1Ev.note.octave, v1Ev.note.accidental, score.keySignature, playDur, tempo, 1.0);
           }
-          // 和弦伴奏
+          // 和弦伴奏 (38% 音量)
           if (v1Ev.note.chord && score.playAccompaniment !== false) {
             const chordPlayDur = Math.max(1.5, v1Ev.beats * beatDurationSecs * 2);
             playChord(v1Ev.note.chord, chordPlayDur, 0.38);
           }
         }
 
-        // 2. 声部 2 (副声部/低音声部) 在当前时间点同步发音
+        // 2. 声部 2 (副声部/低音声部) 在当前时间点同步发音 (60% 音量柔化衬托)
         const v2Ev = v2Events.find(e => Math.abs(e.start - currT) < 0.001);
         if (v2Ev && v2Ev.note.pitch > 0 && !v2Analysis.isTied[v2Ev.globalIdx]) {
           const playDur2 = v2Analysis.tiedDur[v2Ev.globalIdx] || v2Ev.beats;
-          playNote(v2Ev.note.pitch, v2Ev.note.octave, v2Ev.note.accidental, score.keySignature, playDur2, tempo);
+          playNote(v2Ev.note.pitch, v2Ev.note.octave, v2Ev.note.accidental, score.keySignature, playDur2, tempo, 0.6);
         }
 
         if (sliceBeats > 0.001) {
           await interruptibleSleep(sliceBeats * beatDurationSecs * 1000);
         }
+      }
+
+      if (!seekInterrupted) {
+        currentMi++;
       }
     }
 

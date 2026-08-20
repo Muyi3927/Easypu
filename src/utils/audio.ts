@@ -201,7 +201,8 @@ export const playNote = (
   accidental: string | null,
   keySig: string,
   durationBeats: number,
-  tempo: number = 120
+  tempo: number = 120,
+  volumeScale: number = 1.0
 ) => {
   if (pitch <= 0) return; // 休止符或占位符
 
@@ -229,7 +230,7 @@ export const playNote = (
 
   // 2. 如果找到了对应采样，进行高保真重采样变调播放 (Pitch Shifting via PlaybackRate)
   if (bestSample) {
-    playSalamanderSample(ctx, bestSample.buffer, midi - bestSample.midi, noteDurationSecs);
+    playSalamanderSample(ctx, bestSample.buffer, midi - bestSample.midi, noteDurationSecs, volumeScale);
     return;
   }
 
