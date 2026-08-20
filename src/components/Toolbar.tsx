@@ -337,9 +337,15 @@ export const Toolbar = () => {
             const playDur = v1Analysis.tiedDur[v1Ev.globalIdx] || v1Ev.beats;
             playNote(v1Ev.note.pitch, v1Ev.note.octave, v1Ev.note.accidental, v1Key, playDur, tempo, 1.0);
           }
-          // 和弦伴奏 (38% 音量)
+          // 和弦伴奏 (按拍号与下一个和弦起点精准计算持续时值，4/4拍默认为整小节4拍，遇新和弦自动衔接)
           if (v1Ev.note.chord && score.playAccompaniment !== false) {
-            const chordPlayDur = Math.max(1.5, v1Ev.beats * beatDurationSecs * 2);
+            const [topStr, btmStr] = (score.timeSignature || '4/4').split('/');
+            const beatsPerMeasure = (parseInt(topStr) || 4) * (4 / (parseInt(btmStr) || 4));
+            const nextChordEv = v1Events.find(e => e.start > currT + 0.001 && !!e.note.chord);
+            const chordSpanBeats = nextChordEv
+              ? (nextChordEv.start - currT)
+              : Math.max(beatsPerMeasure - currT, measureDurationBeats - currT, 1.0);
+            const chordPlayDur = Math.max(0.3, chordSpanBeats * beatDurationSecs);
             playChord(v1Ev.note.chord, chordPlayDur, 0.38);
           }
         }
