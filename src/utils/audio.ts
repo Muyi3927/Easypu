@@ -269,15 +269,18 @@ export const playMidiNote = (
 };
 
 // 播放和弦多复音 (Polyphonic Chord Accompaniment Playback)
+// 经过声学混音配比：和弦为背景衬托，音量适度柔化 (约 35%~45%)，完美烘托主旋律
 export const playChord = (
   chordName: string,
-  durationSecs: number = 1.2,
-  volumeScale: number = 0.6
+  durationSecs: number = 2.0,
+  volumeScale: number = 0.4
 ) => {
   if (!chordName) return;
   const midis = parseChordToMidiNotes(chordName);
-  midis.forEach(midi => {
-    playMidiNote(midi, durationSecs, volumeScale);
+  midis.forEach((midi, idx) => {
+    // 根音 Bass 稍微温暖扎实 (volumeScale * 1.1)，和声内音轻柔舒缓 (volumeScale * 0.8)
+    const noteVol = idx === 0 ? volumeScale * 1.05 : volumeScale * 0.8;
+    playMidiNote(midi, durationSecs, noteVol);
   });
 };
 

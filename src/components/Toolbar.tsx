@@ -235,7 +235,7 @@ export const Toolbar = () => {
           chordSpanBeats += getNoteBeats(nextN);
         }
         const chordPlayDur = Math.max(1.5, chordSpanBeats * beatDurationSecs);
-        playChord(note.chord, chordPlayDur, 0.7);
+        playChord(note.chord, chordPlayDur, 0.38);
       }
 
       // 精确按音符实际节拍时值等待
