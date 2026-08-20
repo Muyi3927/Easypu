@@ -552,12 +552,28 @@ export const Toolbar = () => {
     }
   ];
 
-  const handleExportAudio = async () => {
+  const [showAudioFormatMenu, setShowAudioFormatMenu] = useState(false);
+  const audioMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (audioMenuRef.current && !audioMenuRef.current.contains(e.target as Node)) {
+        setShowAudioFormatMenu(false);
+      }
+    };
+    if (showAudioFormatMenu) {
+      window.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => window.removeEventListener('mousedown', handleOutsideClick);
+  }, [showAudioFormatMenu]);
+
+  const handleExportAudio = async (format: 'mp3' | 'wav' = 'mp3') => {
+    setShowAudioFormatMenu(false);
     if (isExportingAudio) return;
     try {
       setIsExportingAudio(true);
-      showToast(`正在离线渲染《${score.title || '乐谱'}》高保真音频...`, 'info');
-      const fileName = await downloadScoreAudio(score);
+      showToast(`正在离线渲染《${score.title || '乐谱'}》${format.toUpperCase()}音频...`, 'info');
+      const fileName = await downloadScoreAudio(score, format);
       showToast(`已成功导出录音音频文件：${fileName}`, 'success');
     } catch (err: any) {
       showToast(`音频导出失败: ${err.message || '未知错误'}`, 'error');
@@ -576,7 +592,7 @@ export const Toolbar = () => {
           <button className={`tab-btn ${activeTab === 'chords' ? 'active' : ''}`} onClick={() => setActiveTab('chords')}>🎸 和弦伴奏</button>
         </div>
 
-        <div className="toolbar-playback-group">
+        <div className="toolbar-playback-group" ref={audioMenuRef}>
           <button 
             className={`play-btn ${isPlaying ? 'playing' : ''}`} 
             onClick={isPlaying ? stopScore : playScore}
@@ -584,14 +600,43 @@ export const Toolbar = () => {
           >
             {isPlaying ? '⏹ 停止' : '▶ 试听'}
           </button>
-          <button
-            className="export-audio-btn"
-            onClick={handleExportAudio}
-            disabled={isExportingAudio}
-            title="将整首曲谱伴奏录音导出为音频文件并下载 (以曲谱标题命名)"
-          >
-            {isExportingAudio ? '⏳ 正在导出...' : '🎙️ 录音下载'}
-          </button>
+          <div className="audio-export-dropdown-wrapper">
+            <button
+              className="export-audio-btn"
+              onClick={() => setShowAudioFormatMenu(!showAudioFormatMenu)}
+              disabled={isExportingAudio}
+              title="将整首曲谱伴奏录音导出为 MP3 或 WAV 音频文件并下载"
+            >
+              <span>{isExportingAudio ? '⏳ 正在导出...' : '🎙️ 录音下载'}</span>
+              <span className="dropdown-arrow-icon">▾</span>
+            </button>
+
+            {showAudioFormatMenu && (
+              <div className="audio-format-menu">
+                <div className="audio-format-menu-title">选择录音导出格式</div>
+                <button
+                  className="audio-format-item"
+                  onClick={() => handleExportAudio('mp3')}
+                >
+                  <div className="format-item-left">
+                    <div className="format-name">MP3 格式 (.mp3)</div>
+                    <div className="format-desc">192kbps 推荐，文件小巧，方便分享与手机播放</div>
+                  </div>
+                  <span className="format-badge recommend">推荐</span>
+                </button>
+                <button
+                  className="audio-format-item"
+                  onClick={() => handleExportAudio('wav')}
+                >
+                  <div className="format-item-left">
+                    <div className="format-name">WAV 无损格式 (.wav)</div>
+                    <div className="format-desc">44.1kHz 16-bit 母带级无损高保真原音</div>
+                  </div>
+                  <span className="format-badge lossless">无损</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

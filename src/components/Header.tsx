@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { downloadScoreAudio } from '../utils/audio';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 export const Header = () => {
   const navigate = useNavigate();
@@ -98,12 +98,28 @@ export const Header = () => {
     }
   };
 
-  const handleExportAudio = async () => {
+  const [showAudioMenu, setShowAudioMenu] = useState(false);
+  const headerAudioMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (headerAudioMenuRef.current && !headerAudioMenuRef.current.contains(e.target as Node)) {
+        setShowAudioMenu(false);
+      }
+    };
+    if (showAudioMenu) {
+      window.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => window.removeEventListener('mousedown', handleOutsideClick);
+  }, [showAudioMenu]);
+
+  const handleExportAudio = async (format: 'mp3' | 'wav' = 'mp3') => {
+    setShowAudioMenu(false);
     if (isExportingAudio) return;
     try {
       setIsExportingAudio(true);
-      showToast(`正在离线渲染《${score.title || '乐谱'}》高保真音频...`, 'info');
-      const fileName = await downloadScoreAudio(score);
+      showToast(`正在离线渲染《${score.title || '乐谱'}》${format.toUpperCase()}音频...`, 'info');
+      const fileName = await downloadScoreAudio(score, format);
       showToast(`已成功导出录音音频文件：${fileName}`, 'success');
     } catch (err: any) {
       showToast(`音频导出失败: ${err.message || '未知错误'}`, 'error');
@@ -274,15 +290,48 @@ export const Header = () => {
             <span>导出 PDF</span>
           </button>
 
-          <button className="btn btn-audio" onClick={handleExportAudio} disabled={isExportingAudio} title="导出全曲高保真录音音频并下载 (以曲谱标题命名)">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-              <line x1="12" y1="19" x2="12" y2="23"></line>
-              <line x1="8" y1="23" x2="16" y2="23"></line>
-            </svg>
-            <span>{isExportingAudio ? '正在导出...' : '导出音频'}</span>
-          </button>
+          <div className="header-audio-dropdown-wrapper" ref={headerAudioMenuRef}>
+            <button
+              className="btn btn-audio"
+              onClick={() => setShowAudioMenu(!showAudioMenu)}
+              disabled={isExportingAudio}
+              title="导出录音音频文件 (支持 MP3 与 WAV 格式)"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+              <span>{isExportingAudio ? '正在导出...' : '导出音频 ▾'}</span>
+            </button>
+
+            {showAudioMenu && (
+              <div className="header-audio-format-menu">
+                <div className="audio-format-menu-title">选择导出音频格式</div>
+                <button
+                  className="audio-format-item"
+                  onClick={() => handleExportAudio('mp3')}
+                >
+                  <div className="format-item-left">
+                    <div className="format-name">MP3 音频 (.mp3)</div>
+                    <div className="format-desc">192kbps 推荐，文件体积小，适合微信分享与移动端</div>
+                  </div>
+                  <span className="format-badge recommend">推荐</span>
+                </button>
+                <button
+                  className="audio-format-item"
+                  onClick={() => handleExportAudio('wav')}
+                >
+                  <div className="format-item-left">
+                    <div className="format-name">WAV 无损音频 (.wav)</div>
+                    <div className="format-desc">44.1kHz 16-bit 母带级无损无压缩高保真原音</div>
+                  </div>
+                  <span className="format-badge lossless">无损</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

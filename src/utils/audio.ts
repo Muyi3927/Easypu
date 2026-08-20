@@ -9,6 +9,7 @@
 
 import { parseChordToMidiNotes } from './chord';
 import type { Score, Note } from '../types';
+import { Mp3Encoder } from '@breezystack/lamejs';
 
 export const pitchToOffset = [0, 0, 2, 4, 5, 7, 9, 11]; // 1-indexed: 1(Do)=0, 2(Re)=2, 3(Mi)=4, 4(Fa)=5, 5(Sol)=7, 6(La)=9, 7(Ti)=11
 
@@ -432,10 +433,59 @@ export const audioBufferToWav = (buffer: AudioBuffer): Blob => {
 };
 
 // -------------------------------------------------------------
-// 极速离线音频渲染引擎 (Offline Audio Renderer)
-// 1 秒内将全谱（主旋律 + 第二声部 + 和弦伴奏 + 延音/连音线）渲染为无杂音的高保真音频
+// 高音质 MP3 音频编码器 (192kbps 立体声)
 // -------------------------------------------------------------
-export const exportScoreToAudio = async (score: Score): Promise<Blob> => {
+export const audioBufferToMp3 = (buffer: AudioBuffer, kbps: number = 192): Blob => {
+  const channels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const mp3encoder = new Mp3Encoder(channels, sampleRate, kbps);
+  const mp3Data: Uint8Array[] = [];
+
+  const sampleBlockSize = 1152;
+  const left = buffer.getChannelData(0);
+  const right = channels > 1 ? buffer.getChannelData(1) : left;
+
+  const leftInt16 = new Int16Array(left.length);
+  const rightInt16 = new Int16Array(right.length);
+
+  for (let i = 0; i < left.length; i++) {
+    const sL = Math.max(-1.0, Math.min(1.0, left[i]));
+    leftInt16[i] = sL < 0 ? sL * 0x8000 : sL * 0x7FFF;
+
+    const sR = Math.max(-1.0, Math.min(1.0, right[i]));
+    rightInt16[i] = sR < 0 ? sR * 0x8000 : sR * 0x7FFF;
+  }
+
+  for (let i = 0; i < leftInt16.length; i += sampleBlockSize) {
+    const leftChunk = leftInt16.subarray(i, i + sampleBlockSize);
+    let mp3buf: Uint8Array;
+    if (channels === 1) {
+      mp3buf = mp3encoder.encodeBuffer(leftChunk);
+    } else {
+      const rightChunk = rightInt16.subarray(i, i + sampleBlockSize);
+      mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+    }
+    if (mp3buf.length > 0) {
+      mp3Data.push(mp3buf);
+    }
+  }
+
+  const endBuf = mp3encoder.flush();
+  if (endBuf.length > 0) {
+    mp3Data.push(endBuf);
+  }
+
+  return new Blob(mp3Data as unknown as BlobPart[], { type: 'audio/mp3' });
+};
+
+// -------------------------------------------------------------
+// 极速离线音频渲染引擎 (Offline Audio Renderer)
+// 1 秒内将全谱（主旋律 + 第二声部 + 和弦伴奏 + 延音/连音线）渲染为无杂音的高保真音频 (支持 MP3/WAV)
+// -------------------------------------------------------------
+export const exportScoreToAudio = async (
+  score: Score,
+  format: 'mp3' | 'wav' = 'mp3'
+): Promise<Blob> => {
   await preloadPianoSoundfont();
 
   const tempo = score.tempo || 120;
@@ -695,18 +745,24 @@ export const exportScoreToAudio = async (score: Score): Promise<Blob> => {
   }
 
   const renderedBuffer = await offlineCtx.startRendering();
+  if (format === 'mp3') {
+    return audioBufferToMp3(renderedBuffer, 192);
+  }
   return audioBufferToWav(renderedBuffer);
 };
 
 // -------------------------------------------------------------
-// 一键录音音频导出并自动触发下载 (以曲谱标题命名)
+// 一键录音音频导出并自动触发下载 (支持 MP3 / WAV 格式，以曲谱标题命名)
 // -------------------------------------------------------------
-export const downloadScoreAudio = async (score: Score): Promise<string> => {
-  const wavBlob = await exportScoreToAudio(score);
+export const downloadScoreAudio = async (
+  score: Score,
+  format: 'mp3' | 'wav' = 'mp3'
+): Promise<string> => {
+  const audioBlob = await exportScoreToAudio(score, format);
   const cleanTitle = (score.title || '').trim().replace(/[\\/:*?"<>|]/g, '_') || '乐谱录音';
-  const fileName = `${cleanTitle}.wav`;
+  const fileName = `${cleanTitle}.${format}`;
 
-  const url = URL.createObjectURL(wavBlob);
+  const url = URL.createObjectURL(audioBlob);
   const link = document.createElement('a');
   link.href = url;
   link.download = fileName;
