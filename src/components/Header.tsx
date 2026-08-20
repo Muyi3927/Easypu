@@ -8,30 +8,17 @@ import { storageService } from '../services/StorageService';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 
 export const Header = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { isPreviewMode, setIsPreviewMode, previewZoom, setPreviewZoom } = useEditor();
-  const { score, undo, redo, canUndo, canRedo } = useScore();
+  const { score, undo, redo, canUndo, canRedo, isDirty, markSaved } = useScore();
   const { currentUser, syncPush } = useAuth();
   const { showToast } = useToast();
 
   const [showExitConfirm, setShowExitConfirm] = useState(false);
-  const lastSavedScoreRef = useRef<string>('');
-  const isInitialMount = useRef(true);
-
-  // 初始化记录初始状态
-  useEffect(() => {
-    if (isInitialMount.current && score.measures && score.measures.length > 0) {
-      lastSavedScoreRef.current = JSON.stringify(score);
-      isInitialMount.current = false;
-    }
-  }, [score]);
-
-  // 判断当前是否有未保存的修改
-  const isDirty = lastSavedScoreRef.current ? JSON.stringify(score) !== lastSavedScoreRef.current : false;
 
   // 页面意外关闭/刷新防丢保护
   useEffect(() => {
@@ -86,7 +73,7 @@ export const Header = () => {
   const handleSave = async (): Promise<boolean> => {
     try {
       const savedMeta = storageService.saveScore(score, id && id !== 'new' ? id : undefined, null, currentUser.id);
-      lastSavedScoreRef.current = JSON.stringify(score);
+      markSaved();
 
       if (id === 'new') {
         navigate(`/editor/${savedMeta.id}`, { replace: true });

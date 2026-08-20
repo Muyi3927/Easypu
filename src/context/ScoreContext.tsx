@@ -41,6 +41,9 @@ interface ScoreContextType {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  isDirty: boolean;
+  loadScore: (loadedScore: Score) => void;
+  markSaved: () => void;
 }
 
 export const generatePlaceholderMeasure = (timeSignature: string = '4/4'): Measure => {
@@ -170,10 +173,13 @@ export { initialScore };
 const ScoreContext = createContext<ScoreContextType | undefined>(undefined);
 
 export const ScoreProvider = ({ children }: { children: ReactNode }) => {
-  const [score, setScore] = useState<Score>(initialScore);
+  const [score, setScoreState] = useState<Score>(initialScore);
   const [activeMeasureId, setActiveMeasureId] = useState<string | null>(score.measures[0]?.id || null);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(score.measures[0]?.notes[0]?.id || null);
   const [playingNoteId, setPlayingNoteId] = useState<string | null>(null);
+
+  const [isDirty, setIsDirty] = useState(false);
+  const lastSavedSnapshotRef = useRef<string>(JSON.stringify(initialScore));
 
   const [past, setPast] = useState<Score[]>([]);
   const [future, setFuture] = useState<Score[]>([]);
@@ -185,6 +191,44 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
   const activeMeasureIdRef = useRef<string | null>(activeMeasureId);
   const activeNoteIdRef = useRef<string | null>(activeNoteId);
 
+  // 外部直接 setScore（如设置面板修改样式、标题等）
+  const setScore = useCallback((action: Score | ((prev: Score) => Score)) => {
+    setScoreState(prev => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      scoreRef.current = next;
+      setIsDirty(JSON.stringify(next) !== lastSavedSnapshotRef.current);
+      return next;
+    });
+  }, []);
+
+  // 加载已存在的曲谱或全新初始化曲谱（重置未保存状态为已保存）
+  const loadScore = useCallback((loadedScore: Score) => {
+    scoreRef.current = loadedScore;
+    lastSavedSnapshotRef.current = JSON.stringify(loadedScore);
+    pastRef.current = [];
+    futureRef.current = [];
+    setPast([]);
+    setFuture([]);
+    setScoreState(loadedScore);
+    setIsDirty(false);
+
+    if (loadedScore.measures && loadedScore.measures.length > 0) {
+      const firstM = loadedScore.measures[0];
+      activeMeasureIdRef.current = firstM.id;
+      setActiveMeasureId(firstM.id);
+      if (firstM.notes && firstM.notes.length > 0) {
+        activeNoteIdRef.current = firstM.notes[0].id;
+        setActiveNoteId(firstM.notes[0].id);
+      }
+    }
+  }, []);
+
+  // 成功保存后标记当前快照为已保存
+  const markSaved = useCallback(() => {
+    lastSavedSnapshotRef.current = JSON.stringify(scoreRef.current);
+    setIsDirty(false);
+  }, []);
+
   const applyScoreUpdate = (nextScore: Score, recordHistory: boolean = true) => {
     const current = scoreRef.current;
     if (recordHistory && nextScore !== current) {
@@ -195,7 +239,8 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
       setFuture([]);
     }
     scoreRef.current = nextScore;
-    setScore(nextScore);
+    setScoreState(nextScore);
+    setIsDirty(JSON.stringify(nextScore) !== lastSavedSnapshotRef.current);
   };
 
   const undo = () => {
@@ -211,7 +256,8 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
 
     setPast(newPast);
     setFuture(newFuture);
-    setScore(previous);
+    setScoreState(previous);
+    setIsDirty(JSON.stringify(previous) !== lastSavedSnapshotRef.current);
 
     // Sync active measure/note if needed
     if (previous.measures.length > 0) {
@@ -246,7 +292,8 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
 
     setPast(newPast);
     setFuture(newFuture);
-    setScore(next);
+    setScoreState(next);
+    setIsDirty(JSON.stringify(next) !== lastSavedSnapshotRef.current);
   };
 
   // Keyboard shortcut listener for Ctrl+Z and Ctrl+Y / Ctrl+Shift+Z
@@ -472,23 +519,6 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
     if (nextMeasureId) setActiveMeasureId(nextMeasureId);
     if (nextNoteId) setActiveNoteId(nextNoteId);
   };
-
-  const setScoreWrapped: React.Dispatch<React.SetStateAction<Score>> = useCallback((action) => {
-    const prev = scoreRef.current;
-    const next = typeof action === 'function' ? (action as any)(prev) : action;
-    applyScoreUpdate(next);
-    if (next.measures && next.measures[0]?.id) {
-      const currentActive = next.measures.find((m: Measure) => m.id === activeMeasureIdRef.current);
-      if (!currentActive) {
-        activeMeasureIdRef.current = next.measures[0].id;
-        setActiveMeasureId(next.measures[0].id);
-        if (next.measures[0].notes[0]?.id) {
-          activeNoteIdRef.current = next.measures[0].notes[0].id;
-          setActiveNoteId(next.measures[0].notes[0].id);
-        }
-      }
-    }
-  }, []);
 
   const insertMeasureAfter = (measureId: string) => {
     const currentScore = scoreRef.current;
@@ -1269,7 +1299,7 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
     <ScoreContext.Provider
       value={{
         score,
-        setScore: setScoreWrapped,
+        setScore,
         activeMeasureId,
         setActiveMeasureId,
         activeNoteId,
@@ -1304,7 +1334,10 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
         undo,
         redo,
         canUndo: past.length > 0,
-        canRedo: future.length > 0
+        canRedo: future.length > 0,
+        isDirty,
+        loadScore,
+        markSaved
       }}
     >
       {children}

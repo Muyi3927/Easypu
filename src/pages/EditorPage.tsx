@@ -5,7 +5,7 @@ import { Header } from '../components/Header';
 import { Toolbar } from '../components/Toolbar';
 import { ScoreEditor } from '../components/ScoreEditor';
 import { PianoKeyboard } from '../components/PianoKeyboard';
-import { useScore } from '../context/ScoreContext';
+import { useScore, createDefaultScore } from '../context/ScoreContext';
 import { useEditor } from '../context/EditorContext';
 import { useAuth } from '../context/AuthContext';
 import { storageService } from '../services/StorageService';
@@ -13,7 +13,7 @@ import { storageService } from '../services/StorageService';
 export const EditorPage = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
-  const { setScore, setActiveMeasureId, setActiveNoteId } = useScore();
+  const { loadScore } = useScore();
   const { activeTab, isPreviewMode } = useEditor();
   const { currentUser } = useAuth();
   const loadedIdRef = useRef<string | null>(null);
@@ -25,25 +25,15 @@ export const EditorPage = () => {
     if (id && id !== 'new') {
       const existing = storageService.getScoreById(id, currentUser.id);
       if (existing && existing.scoreData && existing.scoreData.measures && existing.scoreData.measures.length > 0) {
-        setScore(existing.scoreData);
-        if (existing.scoreData.measures[0]?.id) {
-          setActiveMeasureId(existing.scoreData.measures[0].id);
-          if (existing.scoreData.measures[0].notes[0]?.id) {
-            setActiveNoteId(existing.scoreData.measures[0].notes[0].id);
-          }
-        }
+        loadScore(existing.scoreData);
         return;
       }
     }
 
-    const title = searchParams.get('title');
-    if (title) {
-      setScore(prev => {
-        if (prev.title === title) return prev;
-        return { ...prev, title };
-      });
-    }
-  }, [id, searchParams]);
+    const title = searchParams.get('title') || '新建曲谱';
+    const newScore = createDefaultScore(title);
+    loadScore(newScore);
+  }, [id, searchParams, currentUser.id, loadScore]);
 
   return (
     <Layout
