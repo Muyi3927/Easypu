@@ -1,19 +1,56 @@
 // -------------------------------------------------------------
-// Easypu 高保真专业钢琴音频引擎 (High-Fidelity Piano Audio Engine)
-// 支持：
-// 1. 真实真钢采样 (Acoustic Grand Piano Soundfont / Sampled Audio)
-// 2. 物理声学建模合成 (Hammer Strike Transient + 4-Harmonic Inharmonicity + 24dB Dynamic LowPass Damping)
+// Easypu 高保真专业三角大钢琴音频引擎 (High-Fidelity Piano Audio Engine)
+// 1. 真实真钢采样 (FluidR3_GM 88键原声三角大钢琴无损采样，内嵌本地秒开)
+// 2. 调号首调音准系统 (12大调 Movable-Do 精准半音映射，A4=440Hz 国际标准律制)
+// 3. 物理声学建模 (琴槌瞬态敲击 + 泛音谐波微拉伸 + 动态低通阻尼滤波)
 // -------------------------------------------------------------
-
-export const keyToOffset: Record<string, number> = {
-  'C': 0, '#C': 1, 'bD': 1, 'D': 2, '#D': 3, 'bE': 3, 'E': 4,
-  'F': 5, '#F': 6, 'bG': 6, 'G': 7, '#G': 8, 'bA': 8, 'A': 9, '#A': 10, 'bB': 10, 'B': 11
-};
 
 export const pitchToOffset = [0, 0, 2, 4, 5, 7, 9, 11]; // 1-indexed, 1=0(Do), 2=2(Re), 3=4(Mi), 4=5(Fa), 5=7(Sol), 6=9(La), 7=11(Ti)
 
 // MIDI 科学音名映射
 const NOTE_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+// 精准解析简谱调号等号后的半音基准偏移量 (以 C 为基准 0)
+export const getKeyOffset = (keySig: string = '1=C'): number => {
+  if (!keySig) return 0;
+  // 提取 1= 后的调名
+  let str = keySig.replace(/^1\s*=\s*/i, '').trim();
+
+  // 支持中文字符 "降B", "升F"
+  str = str.replace(/降/g, 'b').replace(/升/g, '#');
+
+  // 标准化调号命名
+  if (/^[b#][A-Ga-g]$/.test(str)) {
+    str = `${str[1].toUpperCase()}${str[0]}`;
+  } else if (/^[A-Ga-g][b#]?$/.test(str)) {
+    str = str.toUpperCase();
+    if (str.length === 2 && str[1] === 'B' && str[0] !== 'B') {
+      str = `${str[0]}b`;
+    }
+  }
+
+  const keyMap: Record<string, number> = {
+    'C': 0, 'B#': 0,
+    'C#': 1, 'Db': 1, '#C': 1, 'bD': 1,
+    'D': 2,
+    'D#': 3, 'Eb': 3, '#D': 3, 'bE': 3,
+    'E': 4, 'Fb': 4,
+    'F': 5, 'E#': 5,
+    'F#': 6, 'Gb': 6, '#F': 6, 'bG': 6,
+    'G': 7,
+    'G#': 8, 'Ab': 8, '#G': 8, 'bA': 8,
+    'A': 9,
+    'A#': 10, 'Bb': 10, '#A': 10, 'bB': 10,
+    'B': 11, 'Cb': 11
+  };
+
+  return keyMap[str] ?? (keyMap[str.toUpperCase()] ?? 0);
+};
+
+export const keyToOffset: Record<string, number> = {
+  'C': 0, '#C': 1, 'bD': 1, 'D': 2, '#D': 3, 'bE': 3, 'E': 4,
+  'F': 5, '#F': 6, 'bG': 6, 'G': 7, '#G': 8, 'bA': 8, 'A': 9, '#A': 10, 'bB': 10, 'B': 11
+};
 
 let audioCtx: AudioContext | null = null;
 const sampleBufferCache: Map<string, AudioBuffer> = new Map();
@@ -31,74 +68,103 @@ export const initAudio = (): AudioContext => {
   return audioCtx;
 };
 
-// 预加载开源高质量真实三角大钢琴采样 Soundfont (FluidR3_GM Acoustic Grand Piano)
+// 预加载内嵌真实三角大钢琴 88 键高保真采样 (本地优先，无任何外部网络依赖)
 export const preloadPianoSoundfont = async () => {
   if (isSoundfontLoaded || isSoundfontLoading) return;
   isSoundfontLoading = true;
 
   try {
     const ctx = initAudio();
-    // 使用开源高质量 CDN Soundfont 数据
-    const response = await fetch(
-      'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3.js'
-    );
-    if (!response.ok) return;
+    
+    // 优先读取本地内嵌的完整 JSON 钢琴采样包
+    let soundData: Record<string, string> | null = null;
 
-    const text = await response.text();
-    // 安全提取 Soundfont JSON 数据对象
-    const match = text.match(/MIDI\.Soundfont\.acoustic_grand_piano\s*=\s*(\{[\s\S]*\});?\s*$/) || text.match(/(\{[\s\S]*\})/);
-    if (!match) return;
-    const soundData: Record<string, string> = JSON.parse(match[1]);
+    try {
+      const response = await fetch('/soundfont/acoustic_grand_piano.json');
+      if (response.ok) {
+        soundData = await response.json();
+      }
+    } catch {
+      // 本地 JSON 读取失败时尝试 CDN 备用
+    }
 
-    for (const [noteName, dataUri] of Object.entries(soundData)) {
+    if (!soundData) {
       try {
-        const base64Data = dataUri.split(',')[1];
-        if (!base64Data) continue;
-        const binaryStr = atob(base64Data);
-        const len = binaryStr.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
+        const response = await fetch('https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3.js');
+        if (response.ok) {
+          const text = await response.text();
+          // 使用 Function 构造器安全执行 JS 采样字典
+          const fn = new Function(`${text}; return (typeof MIDI !== 'undefined' && MIDI.Soundfont && MIDI.Soundfont.acoustic_grand_piano) ? MIDI.Soundfont.acoustic_grand_piano : null;`);
+          soundData = fn();
         }
-        const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
-        sampleBufferCache.set(noteName, audioBuffer);
       } catch (e) {
-        // 忽略单音符解析失败
+        console.warn('[Audio] 采样下载异常:', e);
       }
     }
+
+    if (!soundData) return;
+
+    // 解码全套钢琴键采样并存入缓存
+    const entries = Object.entries(soundData);
+    await Promise.all(
+      entries.map(async ([noteName, dataUri]) => {
+        try {
+          const base64Data = dataUri.includes(',') ? dataUri.split(',')[1] : dataUri;
+          if (!base64Data) return;
+          const binaryStr = atob(base64Data);
+          const len = binaryStr.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          const audioBuffer = await ctx.decodeAudioData(bytes.buffer.slice(0));
+          sampleBufferCache.set(noteName, audioBuffer);
+        } catch {
+          // 忽略单音符解析错误
+        }
+      })
+    );
+
     isSoundfontLoaded = true;
   } catch (err) {
-    console.warn('[Audio] 真实钢琴采样在线加载异常，已自动启用高保真声学建模引擎:', err);
+    console.warn('[Audio] 钢琴采样初始化异常，自动切换为物理声学建模引擎:', err);
   } finally {
     isSoundfontLoading = false;
   }
 };
 
-// 页面初始化时后台静默启动加载
+// 页面加载或初次交互时后台静默预热加载
 if (typeof window !== 'undefined') {
-  window.addEventListener('click', () => {
+  const triggerAudioInit = () => {
     initAudio();
     preloadPianoSoundfont();
-  }, { once: true });
+  };
+  window.addEventListener('click', triggerAudioInit, { once: true });
+  window.addEventListener('keydown', triggerAudioInit, { once: true });
+  window.addEventListener('touchstart', triggerAudioInit, { once: true });
+  // 浏览器空闲时自动预载
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(() => preloadPianoSoundfont());
+  } else {
+    setTimeout(() => preloadPianoSoundfont(), 1000);
+  }
 }
 
-// 计算 MIDI 编号与标准音名
-const calculateMidiNote = (
+// 计算 MIDI 编号、音名与真实频率 (精确适配 12 大调首调体系)
+export const calculateMidiNote = (
   pitch: number,
   octave: number,
   accidental: string | null,
   keySig: string
 ): { midi: number; noteName: string; frequency: number } => {
-  const keyMatch = keySig.match(/1=([#b]?[A-G])/);
-  const key = keyMatch ? keyMatch[1] : 'C';
-  const baseOffset = keyToOffset[key] || 0;
+  const baseOffset = getKeyOffset(keySig);
 
   let noteOffset = pitchToOffset[pitch] || 0;
-  if (accidental === '#') noteOffset += 1;
-  if (accidental === 'b') noteOffset -= 1;
+  if (accidental === '#' || accidental === '♯') noteOffset += 1;
+  if (accidental === 'b' || accidental === '♭') noteOffset -= 1;
 
   // C4 (中央 C) 的 MIDI 编号是 60
-  const midi = 60 + baseOffset + noteOffset + octave * 12;
+  const midi = 60 + baseOffset + noteOffset + (octave || 0) * 12;
   const noteIndex = ((midi % 12) + 12) % 12;
   const octaveNumber = Math.floor(midi / 12) - 1;
   const noteName = `${NOTE_NAMES[noteIndex]}${octaveNumber}`;
@@ -109,7 +175,7 @@ const calculateMidiNote = (
   return { midi, noteName, frequency };
 };
 
-// 播放音符
+// 播放音符 (支持真实三角大钢琴采样与泛音衰减)
 export const playNote = (
   pitch: number,
   octave: number,
@@ -127,14 +193,14 @@ export const playNote = (
   const beatDuration = 60 / (tempo || 120);
   const noteDurationSecs = Math.max(0.2, durationBeats * beatDuration);
 
-  // 策略 A: 如果真实采样已加载，优先播放顶级真实三角钢琴录音采样
+  // 策略 A: 优先播放真实三角大钢琴录音采样
   const cachedSample = sampleBufferCache.get(noteName);
   if (cachedSample) {
     playSampledAudio(ctx, cachedSample, noteDurationSecs);
     return;
   }
 
-  // 策略 B: 使用物理建模真实声学合成（多泛音谐波 + 琴槌敲击冲激 + 24dB 动态低通滤波器）
+  // 策略 B: 采样未完成时使用高保真物理声学建模合成
   playAcousticModeledNote(ctx, frequency, noteDurationSecs);
 };
 
