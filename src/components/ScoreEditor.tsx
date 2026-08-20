@@ -454,38 +454,20 @@ export const ScoreEditor = () => {
         return;
       }
 
-      // 4. ↑ 升高八度 / ↓ 降低八度（先按上/下，按一下高一，连按两下高二；或直接修改当前音符）
+      // 4. ↑ 升高八度 / ↓ 降低八度（严格在当前光标位作用，绝不跳回上一位；如需修改上一位按 ← 移动光标）
       if (key === 'ArrowUp' || key === 'ArrowDown') {
         e.preventDefault();
         const isUp = key === 'ArrowUp';
 
-        // 查找目标音符：优先当前激活音符；若当前音符已是占位符，且前一个音符刚刚输入，也可作用于前一音符
-        let targetNote = activeNote;
-        let targetMeasureId = activeMeasureId;
-
-        if ((!targetNote || targetNote.pitch <= 0) && activeMeasureId) {
-          const currentM = score.measures.find(m => m.id === activeMeasureId);
-          if (currentM) {
-            const currentIdx = currentM.notes.findIndex(n => n.id === activeNoteId);
-            if (currentIdx > 0 && currentM.notes[currentIdx - 1].pitch > 0) {
-              targetNote = currentM.notes[currentIdx - 1];
-              targetMeasureId = currentM.id;
-            }
-          }
-        }
-
-        if (targetNote && targetNote.pitch > 0) {
-          // 当前音符有实际音高：直接升降八度
-          const currentOct = targetNote.octave || 0;
+        if (activeNote && activeNote.pitch > 0) {
+          // 当前选中的音符有实际音高：直接升降该音符的八度
+          const currentOct = activeNote.octave || 0;
           const newOct = isUp ? Math.min(2, currentOct + 1) : Math.max(-2, currentOct - 1);
-          if (targetMeasureId && targetNote.id !== activeNoteId) {
-            selectNote(targetMeasureId, targetNote.id);
-          }
           updateActiveNote({ octave: newOct }, false);
-          playNote(targetNote.pitch, newOct, targetNote.accidental, score.keySignature, targetNote.duration, score.tempo || 70);
+          playNote(activeNote.pitch, newOct, activeNote.accidental, score.keySignature, activeNote.duration, score.tempo || 70);
           pendingOctaveRef.current = newOct;
         } else {
-          // 预设下一个要输入的音符八度：按一下高一(+1)，连按两下高二(+2)；向下同理(-1, -2)
+          // 当前位置为占位符：前置预设当前位置的录入八度（按一下高一+1，连按两下高二+2；向下同理-1, -2）
           if (isUp) {
             pendingOctaveRef.current = pendingOctaveRef.current <= 0 ? 1 : Math.min(2, pendingOctaveRef.current + 1);
           } else {
