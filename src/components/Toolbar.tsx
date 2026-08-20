@@ -287,13 +287,16 @@ export const Toolbar = () => {
         const nextT = ti < uniqueTimestamps.length - 1 ? uniqueTimestamps[ti + 1] : measureDurationBeats;
         const sliceBeats = nextT - currT;
 
-        // 1. 声部 1 在当前时间点发音 (主旋律 100% 音量)
+        const v1Key = score.voice1KeySignature || score.keySignature;
+        const v2Key = score.voice2KeySignature || score.keySignature;
+
+        // 1. 声部 1 在当前时间点发音 (主旋律 100% 音量，使用声部 1 调号)
         const v1Ev = v1Events.find(e => Math.abs(e.start - currT) < 0.001);
         if (v1Ev && v1Ev.note.pitch !== -2) {
           setPlayingNoteId(v1Ev.note.id);
           if (v1Ev.note.pitch > 0 && !v1Analysis.isTied[v1Ev.globalIdx]) {
             const playDur = v1Analysis.tiedDur[v1Ev.globalIdx] || v1Ev.beats;
-            playNote(v1Ev.note.pitch, v1Ev.note.octave, v1Ev.note.accidental, score.keySignature, playDur, tempo, 1.0);
+            playNote(v1Ev.note.pitch, v1Ev.note.octave, v1Ev.note.accidental, v1Key, playDur, tempo, 1.0);
           }
           // 和弦伴奏 (38% 音量)
           if (v1Ev.note.chord && score.playAccompaniment !== false) {
@@ -302,11 +305,11 @@ export const Toolbar = () => {
           }
         }
 
-        // 2. 声部 2 (副声部/低音声部) 在当前时间点同步发音 (60% 音量柔化衬托)
+        // 2. 声部 2 (副声部/低音声部) 在当前时间点同步发音 (60% 音量柔化衬托，使用声部 2 独立调号)
         const v2Ev = v2Events.find(e => Math.abs(e.start - currT) < 0.001);
         if (v2Ev && v2Ev.note.pitch > 0 && !v2Analysis.isTied[v2Ev.globalIdx]) {
           const playDur2 = v2Analysis.tiedDur[v2Ev.globalIdx] || v2Ev.beats;
-          playNote(v2Ev.note.pitch, v2Ev.note.octave, v2Ev.note.accidental, score.keySignature, playDur2, tempo, 0.6);
+          playNote(v2Ev.note.pitch, v2Ev.note.octave, v2Ev.note.accidental, v2Key, playDur2, tempo, 0.6);
         }
 
         if (sliceBeats > 0.001) {

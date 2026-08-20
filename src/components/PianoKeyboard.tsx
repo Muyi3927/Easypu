@@ -11,7 +11,7 @@ const pitches = [1, 2, 3, 4, 5, 6, 7];
 
 export const PianoKeyboard = () => {
   const { currentDuration, setCurrentDuration, isDotted, setIsDotted } = useEditor();
-  const { updateActiveNote, score } = useScore();
+  const { updateActiveNote, score, activeVoice } = useScore();
   const keyboardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,8 +29,12 @@ export const PianoKeyboard = () => {
       setIsDotted(false); // 单次作用，不常亮
     }
 
+    const v1Key = score.voice1KeySignature || score.keySignature;
+    const v2Key = score.voice2KeySignature || score.keySignature;
+    const activeKeySig = (activeVoice === 2 && score.hasSecondVoice) ? v2Key : v1Key;
+
     // Play the note
-    playNote(pitch, octave, accidental, score.keySignature, finalDuration, score.tempo || 70);
+    playNote(pitch, octave, accidental, activeKeySig, finalDuration, score.tempo || 120);
 
     updateActiveNote({
       pitch: pitch,

@@ -63,6 +63,8 @@ export interface Score {
   hasSecondVoice?: boolean; // 是否开启双声部打谱 (第二声部)
   voice1Name?: string; // 第一声部名称 (如 高音部 / 右手)
   voice2Name?: string; // 第二声部名称 (如 低音部 / 左手)
+  voice1KeySignature?: string; // 第一声部独立调号 (默认为 keySignature)
+  voice2KeySignature?: string; // 第二声部独立调号 (可独立设为 1=C, 1=G, 1=F, 1=bB 等)
   // 页码
   showPageNumber: boolean;
   pageNumberStyle: string;

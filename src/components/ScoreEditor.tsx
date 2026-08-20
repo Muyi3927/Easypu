@@ -379,8 +379,8 @@ export const ScoreEditor = () => {
   ];
 
   // 解析调号显示
-  const getKeyDisplay = () => {
-    const key = score.keySignature.replace('1=', '');
+  const parseKeyString = (keyStr: string) => {
+    const key = (keyStr || '1=C').replace('1=', '');
     if (key.startsWith('#')) {
       return { accidental: '#', note: key.substring(1) };
     } else if (key.startsWith('b')) {
@@ -389,13 +389,18 @@ export const ScoreEditor = () => {
     return { accidental: '', note: key };
   };
 
+  const v1KeySig = score.voice1KeySignature || score.keySignature;
+  const v2KeySig = score.voice2KeySignature || score.keySignature;
+  const keyDisplay = parseKeyString(v1KeySig);
+  const v2KeyDisplay = parseKeyString(v2KeySig);
+  const activeKeySig = (activeVoice === 2 && score.hasSecondVoice) ? v2KeySig : v1KeySig;
+
   // 解析拍号显示
   const getTimeDisplay = () => {
     const parts = score.timeSignature.split('/');
     return { top: parts[0], bottom: parts[1] };
   };
 
-  const keyDisplay = getKeyDisplay();
   const timeDisplay = getTimeDisplay();
 
   // 获取当前激活的音符 (完整支持第一声部与第二声部)
@@ -453,7 +458,7 @@ export const ScoreEditor = () => {
         if (activeNote && activeNote.pitch > 0) {
           const newAcc = activeNote.accidental === targetAcc ? null : targetAcc;
           updateActiveNote({ accidental: newAcc }, false);
-          playNote(activeNote.pitch, activeNote.octave, newAcc, score.keySignature, activeNote.duration, score.tempo || 120);
+          playNote(activeNote.pitch, activeNote.octave, newAcc, activeKeySig, activeNote.duration, score.tempo || 120);
         } else {
           pendingAccidentalRef.current = pendingAccidentalRef.current === targetAcc ? null : targetAcc;
         }
@@ -470,7 +475,7 @@ export const ScoreEditor = () => {
           const currentOct = activeNote.octave || 0;
           const newOct = isUp ? Math.min(2, currentOct + 1) : Math.max(-2, currentOct - 1);
           updateActiveNote({ octave: newOct }, false);
-          playNote(activeNote.pitch, newOct, activeNote.accidental, score.keySignature, activeNote.duration, score.tempo || 120);
+          playNote(activeNote.pitch, newOct, activeNote.accidental, activeKeySig, activeNote.duration, score.tempo || 120);
           pendingOctaveRef.current = newOct;
         } else {
           // 当前位置为占位符：前置预设当前位置的录入八度
@@ -506,7 +511,7 @@ export const ScoreEditor = () => {
         pendingAccidentalRef.current = null;
 
         // 播放键盘敲击发音反馈
-        playNote(numPitch, currentOctave, currentAccidental, score.keySignature, finalDuration, score.tempo || 120);
+        playNote(numPitch, currentOctave, currentAccidental, activeKeySig, finalDuration, score.tempo || 120);
 
         updateActiveNote({ pitch: numPitch, octave: currentOctave, accidental: currentAccidental, duration: finalDuration, isDotted: noteWasDotted });
         return;
@@ -937,14 +942,55 @@ export const ScoreEditor = () => {
                   </button>
                   {expandedSections.keyTime && (
                     <div className="section-content">
-                      <div className="form-group">
-                        <label>调号</label>
-                        <div className="key-grid">
-                          {keyOptions.map(k => (
-                            <button key={k.value} className={`key-btn ${score.keySignature === `1=${k.value}` ? 'active' : ''}`} onClick={() => setScore({ ...score, keySignature: `1=${k.value}` })}>{k.label}</button>
-                          ))}
+                      {score.hasSecondVoice ? (
+                        <>
+                          <div className="form-group">
+                            <label>第 1 声部调号 ({score.voice1Name || '高音部'})</label>
+                            <div className="key-grid">
+                              {keyOptions.map(k => (
+                                <button
+                                  key={k.value}
+                                  className={`key-btn ${(score.voice1KeySignature || score.keySignature) === `1=${k.value}` ? 'active' : ''}`}
+                                  onClick={() => setScore({ ...score, voice1KeySignature: `1=${k.value}`, keySignature: `1=${k.value}` })}
+                                >
+                                  {k.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="form-group" style={{ marginTop: '12px' }}>
+                            <label>第 2 声部独立调号 ({score.voice2Name || '低音部'})</label>
+                            <div className="key-grid">
+                              {keyOptions.map(k => (
+                                <button
+                                  key={k.value}
+                                  className={`key-btn ${(score.voice2KeySignature || score.keySignature) === `1=${k.value}` ? 'active' : ''}`}
+                                  onClick={() => setScore({ ...score, voice2KeySignature: `1=${k.value}` })}
+                                >
+                                  {k.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="form-group">
+                          <label>调号</label>
+                          <div className="key-grid">
+                            {keyOptions.map(k => (
+                              <button
+                                key={k.value}
+                                className={`key-btn ${score.keySignature === `1=${k.value}` ? 'active' : ''}`}
+                                onClick={() => setScore({ ...score, keySignature: `1=${k.value}`, voice1KeySignature: `1=${k.value}` })}
+                              >
+                                {k.label}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
+
                       <div className="form-group">
                         <label>拍号</label>
                         <div className="time-grid">
@@ -1430,13 +1476,34 @@ export const ScoreEditor = () => {
 
                 <div className="score-meta">
                   <div className="score-meta-left">
-                    <span className="score-key-display">
-                      <span className="key-prefix">1=</span>
-                      <span className="key-note-wrapper">
-                        {keyDisplay.accidental && <span className="key-accidental">{keyDisplay.accidental}</span>}
-                        <span className="key-note">{keyDisplay.note}</span>
+                    {score.hasSecondVoice && score.voice2KeySignature && score.voice2KeySignature !== (score.voice1KeySignature || score.keySignature) ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="score-key-display">
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', marginRight: '2px' }}>{score.voice1Name || '1部'}:</span>
+                          <span className="key-prefix">1=</span>
+                          <span className="key-note-wrapper">
+                            {keyDisplay.accidental && <span className="key-accidental">{keyDisplay.accidental}</span>}
+                            <span className="key-note">{keyDisplay.note}</span>
+                          </span>
+                        </span>
+                        <span className="score-key-display">
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', marginRight: '2px' }}>{score.voice2Name || '2部'}:</span>
+                          <span className="key-prefix">1=</span>
+                          <span className="key-note-wrapper">
+                            {v2KeyDisplay.accidental && <span className="key-accidental">{v2KeyDisplay.accidental}</span>}
+                            <span className="key-note">{v2KeyDisplay.note}</span>
+                          </span>
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="score-key-display">
+                        <span className="key-prefix">1=</span>
+                        <span className="key-note-wrapper">
+                          {keyDisplay.accidental && <span className="key-accidental">{keyDisplay.accidental}</span>}
+                          <span className="key-note">{keyDisplay.note}</span>
+                        </span>
                       </span>
-                    </span>
+                    )}
                     <span className="score-time-display">
                       <span className="time-top">{timeDisplay.top}</span>
                       <span className="time-bottom">{timeDisplay.bottom}</span>
