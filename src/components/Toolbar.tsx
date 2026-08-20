@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import './Toolbar.css';
 import { useEditor } from '../context/EditorContext';
 import { useScore } from '../context/ScoreContext';
-import { playNote } from '../utils/audio';
+import { playNote, playChord } from '../utils/audio';
+import { getDiatonicChordsForKey, CHORD_PROGRESSION_TEMPLATES, resolveProgressionToChordNames } from '../utils/chord';
 import type { Measure, Note } from '../types';
 
 export const Toolbar = () => {
@@ -45,6 +46,9 @@ export const Toolbar = () => {
     setPlayingNoteId,
     addLyricRow,
     deleteLyricRow,
+    updateNoteChord,
+    applyProgressionToScore,
+    clearAllChords,
     setScore
   } = useScore();
 
@@ -201,6 +205,12 @@ export const Toolbar = () => {
       if (note.pitch > 0 && !isTiedWithPrev[currentIndex]) {
         const playDur = totalTiedDuration[currentIndex] || note.duration;
         playNote(note.pitch, note.octave, note.accidental, score.keySignature, playDur, tempo);
+      }
+
+      // 和弦伴奏多复音同步发声 (Polyphonic Accompaniment in sync!)
+      if (note.chord && score.playAccompaniment !== false) {
+        const chordPlayDur = Math.max(0.6, note.duration * beatDurationSecs * 1.5);
+        playChord(note.chord, chordPlayDur);
       }
 
       await interruptibleSleep(note.duration * beatDurationSecs * 1000);
@@ -388,6 +398,7 @@ export const Toolbar = () => {
         <button className={`tab-btn ${activeTab === 'notes' ? 'active' : ''}`} onClick={() => setActiveTab('notes')}>🎵 音符时值</button>
         <button className={`tab-btn ${activeTab === 'measures' ? 'active' : ''}`} onClick={() => setActiveTab('measures')}>🎼 小节结构</button>
         <button className={`tab-btn ${activeTab === 'text' ? 'active' : ''}`} onClick={() => setActiveTab('text')}>✍️ 歌词与标注</button>
+        <button className={`tab-btn ${activeTab === 'chords' ? 'active' : ''}`} onClick={() => setActiveTab('chords')}>🎸 和弦伴奏</button>
         <button 
           className={`play-btn ${isPlaying ? 'playing' : ''}`} 
           onClick={isPlaying ? stopScore : playScore}
@@ -535,6 +546,83 @@ export const Toolbar = () => {
                   <div className="note-label">{tool.label}</div>
                 </button>
               ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'chords' && (
+          <div className="tools-group chord-tools-group">
+            {/* 1. 当前调自然大调和弦预设 */}
+            <div className="tool-section chord-presets-section">
+              <span className="chord-group-label">{score.keySignature || '1=C'} 调和弦:</span>
+              {getDiatonicChordsForKey(score.keySignature).map(c => (
+                <button
+                  key={c.name}
+                  className={`tool-btn chord-preset-btn ${activeNote?.chord === c.name ? 'active' : ''}`}
+                  onClick={() => {
+                    const targetNoteId = activeNoteId || (activeMeasure && activeMeasure.notes[0]?.id);
+                    if (targetNoteId) {
+                      updateNoteChord(targetNoteId, activeNote?.chord === c.name ? '' : c.name);
+                    }
+                    playChord(c.name, 1.2);
+                  }}
+                  title={`给当前音符添加 ${c.name} 和弦 (${c.degree})`}
+                >
+                  <div className="note-icon chord-name-glyph">{c.name}</div>
+                  <div className="note-label">{c.degree?.split(' ')[0] || c.name}</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="tool-divider"></div>
+
+            {/* 2. 经典和弦进行套路一键套用 */}
+            <div className="tool-section chord-templates-section">
+              <span className="chord-group-label">一键套用模版:</span>
+              {CHORD_PROGRESSION_TEMPLATES.map(tpl => (
+                <button
+                  key={tpl.name}
+                  className="tool-btn chord-tpl-btn"
+                  onClick={() => {
+                    const resolvedChords = resolveProgressionToChordNames(tpl, score.keySignature);
+                    applyProgressionToScore(resolvedChords);
+                    if (resolvedChords[0]) playChord(resolvedChords[0], 1.2);
+                  }}
+                  title={`${tpl.name} (${tpl.description}) - 点击全谱顺次套用`}
+                >
+                  <div className="note-icon">✨</div>
+                  <div className="note-label">{tpl.name.split(' ')[0]}</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="tool-divider"></div>
+
+            {/* 3. 伴奏开关与和弦清理 */}
+            <div className="tool-section chord-actions-section">
+              <button
+                className={`tool-btn ${score.playAccompaniment !== false ? 'active' : ''}`}
+                onClick={() => setScore({ ...score, playAccompaniment: score.playAccompaniment === false ? true : false })}
+                title="播放时是否同步演奏和弦伴奏"
+              >
+                <div className="note-icon">🎹</div>
+                <div className="note-label">{score.playAccompaniment !== false ? '伴奏:开' : '伴奏:关'}</div>
+              </button>
+
+              <button
+                className="tool-btn"
+                onClick={() => {
+                  if (activeNote && activeNote.chord) {
+                    updateNoteChord(activeNote.id, '');
+                  } else {
+                    clearAllChords();
+                  }
+                }}
+                title={activeNote?.chord ? '清除当前音符和弦' : '清空全谱和弦'}
+              >
+                <div className="note-icon">🗑️</div>
+                <div className="note-label">{activeNote?.chord ? '清当前' : '清全部'}</div>
+              </button>
             </div>
           </div>
         )}

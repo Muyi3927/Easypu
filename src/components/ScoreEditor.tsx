@@ -1597,13 +1597,15 @@ export const ScoreEditor = () => {
                                         isActive={!isPreviewMode && activeTab === 'notes' && activeNoteId === note.id}
                                         isPlaying={playingNoteId === note.id}
                                         noteFont={score.noteFont}
+                                        chordFont={score.chordFont}
+                                        showChords={score.showChords}
                                         octaveDotSize={score.octaveDotSize || 6}
                                         isBeatEnd={isBeatEnd}
                                         isPreviewMode={isPreviewMode}
                                         onClick={() => {
                                           selectNote(measure.id, note.id);
                                           if (!isPreviewMode) {
-                                            if (activeTab !== 'text') {
+                                            if (activeTab !== 'text' && activeTab !== 'chords') {
                                               setActiveTab('notes');
                                             }
                                             if (isMultiSelectMode) {
@@ -1879,6 +1881,8 @@ const NoteBlock = ({
   isActive,
   isPlaying,
   noteFont,
+  chordFont,
+  showChords = true,
   octaveDotSize = 6,
   isBeatEnd,
   isPreviewMode,
@@ -1888,6 +1892,8 @@ const NoteBlock = ({
   isActive: boolean;
   isPlaying: boolean;
   noteFont: FontSettings;
+  chordFont?: FontSettings;
+  showChords?: boolean;
   octaveDotSize?: number;
   isBeatEnd: boolean;
   isPreviewMode?: boolean;
@@ -1904,6 +1910,20 @@ const NoteBlock = ({
       style={{ flex: note.duration }}
     >
       <div className="note-core">
+        {/* 和弦符号显示 (Chord Symbol) */}
+        {showChords !== false && note.chord && (
+          <div
+            className="note-chord-badge"
+            style={{
+              fontFamily: chordFont?.fontFamily || 'Arial, sans-serif',
+              fontSize: `${chordFont?.fontSize || 16}px`,
+              color: chordFont?.color || '#2563eb'
+            }}
+          >
+            {note.chord}
+          </div>
+        )}
+
         {note.accidental && !isPlaceholder && !isExtension && (
           <span className="accidental">
             {note.accidental === '#' ? '♯' : note.accidental === 'b' ? '♭' : note.accidental}

@@ -7,6 +7,7 @@ export interface Note {
   accidental: '#' | 'b' | 'n' | null;
   lyric?: string;
   lyrics?: string[];
+  chord?: string; // 和弦名称，如 'C', 'Am', 'G7'
   tieStart?: boolean;
   tieEnd?: boolean;
   slurStart?: boolean;
@@ -56,6 +57,8 @@ export interface Score {
   barlineSize: number; // 1-6 档位
   barlineColor: string;
   octaveDotSize?: number; // 高低音点大小 (px)
+  showChords?: boolean; // 是否显示和弦标记
+  playAccompaniment?: boolean; // 播放时是否同步演奏和弦伴奏
   // 页码
   showPageNumber: boolean;
   pageNumberStyle: string;

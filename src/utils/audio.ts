@@ -7,6 +7,8 @@
 // 4. 自然琴箱声学共鸣与毛毡琴槌释放衰减 (Acoustic Soundboard Envelope)
 // -------------------------------------------------------------
 
+import { parseChordToMidiNotes } from './chord';
+
 export const pitchToOffset = [0, 0, 2, 4, 5, 7, 9, 11]; // 1-indexed: 1(Do)=0, 2(Re)=2, 3(Mi)=4, 4(Fa)=5, 5(Sol)=7, 6(La)=9, 7(Ti)=11
 
 // Salamander Grand Piano 标准采样音高映射表
@@ -236,12 +238,56 @@ export const playNote = (
   playAcousticModeledNote(ctx, frequency, noteDurationSecs);
 };
 
+// 播放指定 MIDI 编号单音 (用于和弦多复音与副声部)
+export const playMidiNote = (
+  midi: number,
+  durationSecs: number,
+  volumeScale: number = 1.0
+) => {
+  const ctx = initAudio();
+  let bestSample: { name: string; midi: number; buffer: AudioBuffer } | null = null;
+  let minDiff = 999;
+
+  for (const s of SALAMANDER_SAMPLES) {
+    const buf = sampleBufferCache.get(s.name);
+    if (buf) {
+      const diff = Math.abs(midi - s.midi);
+      if (diff < minDiff) {
+        minDiff = diff;
+        bestSample = { name: s.name, midi: s.midi, buffer: buf };
+      }
+    }
+  }
+
+  if (bestSample) {
+    playSalamanderSample(ctx, bestSample.buffer, midi - bestSample.midi, durationSecs, volumeScale);
+    return;
+  }
+
+  const frequency = 440 * Math.pow(2, (midi - 69) / 12);
+  playAcousticModeledNote(ctx, frequency, durationSecs);
+};
+
+// 播放和弦多复音 (Polyphonic Chord Accompaniment Playback)
+export const playChord = (
+  chordName: string,
+  durationSecs: number = 1.2,
+  volumeScale: number = 0.6
+) => {
+  if (!chordName) return;
+  const midis = parseChordToMidiNotes(chordName);
+  midis.forEach(midi => {
+    playMidiNote(midi, durationSecs, volumeScale);
+  });
+};
+
 // Salamander Grand Piano 采样播放核心函数 (零断裂、零底噪、丝滑阻尼释放)
 const playSalamanderSample = (
   ctx: AudioContext,
   buffer: AudioBuffer,
   semitoneOffset: number,
-  durationSecs: number
+  durationSecs: number,
+  volumeScale: number = 1.0
 ) => {
   const source = ctx.createBufferSource();
   source.buffer = buffer;
@@ -251,13 +297,14 @@ const playSalamanderSample = (
 
   const gain = ctx.createGain();
   const now = ctx.currentTime;
+  const targetPeak = 0.9 * volumeScale;
 
   // 1. 击弦启动 (5ms 极速无破音软起动)
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.linearRampToValueAtTime(0.9, now + 0.005);
+  gain.gain.linearRampToValueAtTime(targetPeak, now + 0.005);
 
   // 2. 持续发声与琴体自然衰减 (Sustain Decay)
-  gain.gain.setTargetAtTime(0.4, now + 0.04, 0.8);
+  gain.gain.setTargetAtTime(0.4 * volumeScale, now + 0.04, 0.8);
 
   // 3. 离键阻尼释放 (Smooth Damper Release，连续指数衰减，彻底杜绝任何点击滋滋杂音)
   const releaseStart = now + durationSecs;

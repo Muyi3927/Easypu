@@ -37,6 +37,9 @@ interface ScoreContextType {
   pasteLyricsAtNote: (startNoteId: string, rawText: string, rowIndex?: number) => void;
   addLyricRow: () => void;
   deleteLyricRow: (rowIndex: number) => void;
+  updateNoteChord: (noteId: string, chord: string) => void;
+  applyProgressionToScore: (chordNames: string[]) => void;
+  clearAllChords: () => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -130,12 +133,14 @@ const initialScore: Score = {
   subtitleFont: { fontFamily: '宋体', fontSize: 16, color: '#101010' },
   noteFont: { fontFamily: 'Times New Roman', fontSize: 36, color: '#101010' },
   lyricFont: { fontFamily: '黑体', fontSize: 36, color: '#101010' },
-  chordFont: { ...defaultFont, fontSize: 12 },
+  chordFont: { fontFamily: 'Arial, sans-serif', fontSize: 18, color: '#2563eb' },
   annotationFont: { fontFamily: '黑体', fontSize: 24, color: '#1e293b' },
   // 小节样式
   barlineSize: 2,
   barlineColor: '#3d3d3d',
   octaveDotSize: 6,
+  showChords: true,
+  playAccompaniment: true,
   // 页码
   showPageNumber: true,
   pageNumberStyle: '1/2',
@@ -1295,6 +1300,54 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
     applyScoreUpdate(nextScore);
   };
 
+  const updateNoteChord = (noteId: string, chord: string) => {
+    const currentScore = scoreRef.current;
+    const clean = chord ? chord.trim() : '';
+    const newMeasures = currentScore.measures.map(measure => ({
+      ...measure,
+      notes: measure.notes.map(note =>
+        note.id === noteId ? { ...note, chord: clean || undefined } : note
+      )
+    }));
+    applyScoreUpdate({ ...currentScore, measures: newMeasures });
+  };
+
+  const applyProgressionToScore = (chordNames: string[]) => {
+    if (!chordNames || chordNames.length === 0) return;
+    const currentScore = scoreRef.current;
+    let chordIdx = 0;
+
+    const newMeasures = currentScore.measures.map((measure) => {
+      const firstValidNote = measure.notes.find(n => n.pitch !== -2) || measure.notes[0];
+      const assignedChord = chordNames[chordIdx % chordNames.length];
+      chordIdx++;
+
+      return {
+        ...measure,
+        notes: measure.notes.map((note) => {
+          if (firstValidNote && note.id === firstValidNote.id) {
+            return { ...note, chord: assignedChord };
+          }
+          return note;
+        })
+      };
+    });
+
+    applyScoreUpdate({ ...currentScore, measures: newMeasures });
+  };
+
+  const clearAllChords = () => {
+    const currentScore = scoreRef.current;
+    const newMeasures = currentScore.measures.map(measure => ({
+      ...measure,
+      notes: measure.notes.map(note => {
+        const { chord, ...rest } = note;
+        return rest as Note;
+      })
+    }));
+    applyScoreUpdate({ ...currentScore, measures: newMeasures });
+  };
+
   return (
     <ScoreContext.Provider
       value={{
@@ -1331,6 +1384,9 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
         pasteLyricsAtNote,
         addLyricRow,
         deleteLyricRow,
+        updateNoteChord,
+        applyProgressionToScore,
+        clearAllChords,
         undo,
         redo,
         canUndo: past.length > 0,

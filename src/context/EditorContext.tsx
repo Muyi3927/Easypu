@@ -7,8 +7,8 @@ interface EditorContextType {
   setCurrentDuration: (d: number) => void;
   isDotted: boolean;
   setIsDotted: (v: boolean) => void;
-  activeTab: 'notes' | 'measures' | 'text';
-  setActiveTab: (tab: 'notes' | 'measures' | 'text') => void;
+  activeTab: 'notes' | 'measures' | 'text' | 'chords';
+  setActiveTab: (tab: 'notes' | 'measures' | 'text' | 'chords') => void;
   isMultiSelectMode: boolean;
   setIsMultiSelectMode: (v: boolean) => void;
   selectedMeasureIds: string[];
@@ -17,6 +17,8 @@ interface EditorContextType {
   setCopiedMeasures: (m: Measure[] | null) => void;
   editingLyricNoteId: string | null;
   setEditingLyricNoteId: (id: string | null) => void;
+  editingChordNoteId: string | null;
+  setEditingChordNoteId: (id: string | null) => void;
   editingLyricsLineIndex: number | null;
   setEditingLyricsLineIndex: (idx: number | null) => void;
   editingLyricRow: number;
@@ -36,11 +38,12 @@ const EditorContext = createContext<EditorContextType | undefined>(undefined);
 export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [currentDuration, setCurrentDuration] = useState(1);
   const [isDotted, setIsDotted] = useState(false);
-  const [activeTab, setActiveTab] = useState<'notes' | 'measures' | 'text'>('notes');
+  const [activeTab, setActiveTab] = useState<'notes' | 'measures' | 'text' | 'chords'>('notes');
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedMeasureIds, setSelectedMeasureIds] = useState<string[]>([]);
   const [copiedMeasures, setCopiedMeasures] = useState<Measure[] | null>(null);
   const [editingLyricNoteId, setEditingLyricNoteId] = useState<string | null>(null);
+  const [editingChordNoteId, setEditingChordNoteId] = useState<string | null>(null);
   const [editingLyricsLineIndex, setEditingLyricsLineIndex] = useState<number | null>(null);
   const [editingLyricRow, setEditingLyricRow] = useState<number>(0);
   const [editingAnnotationLineIndex, setEditingAnnotationLineIndex] = useState<number | null>(null);
@@ -65,6 +68,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         setCopiedMeasures,
         editingLyricNoteId,
         setEditingLyricNoteId,
+        editingChordNoteId,
+        setEditingChordNoteId,
         editingLyricsLineIndex,
         setEditingLyricsLineIndex,
         editingLyricRow,
