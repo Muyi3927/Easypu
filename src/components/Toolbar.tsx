@@ -28,6 +28,9 @@ export const Toolbar = () => {
     score,
     activeMeasureId,
     activeNoteId,
+    activeVoice,
+    setActiveVoice,
+    toggleSecondVoice,
     updateActiveNote,
     setMeasuresPerLine,
     toggleSlurStart,
@@ -93,32 +96,10 @@ export const Toolbar = () => {
       return;
     }
 
-    // 确定播放起始位置：如果当前选中了具体音符，则从该音符开始播放；否则默认从头开始
-    let startIndex = 0;
-    if (activeNoteId) {
-      const activeIdx = allNotes.findIndex(n => n.id === activeNoteId);
-      if (activeIdx !== -1) {
-        // 检查选定位置及其后续是否含有可播放音符
-        let hasPlayableAfter = false;
-        for (let k = activeIdx; k < allNotes.length; k++) {
-          if (allNotes[k].pitch !== -2) {
-            hasPlayableAfter = true;
-            break;
-          }
-        }
-        startIndex = hasPlayableAfter ? activeIdx : 0;
-      }
-    }
-
-    // 2. 预先分析延音线 (Extension Dash `-` / pitch === -1) 与同音连音线 (Tie)：
-    const isTiedWithPrev = new Array(allNotes.length).fill(false);
-    const totalTiedDuration = new Array(allNotes.length).fill(0);
-
     // 辅助计算单个音符的实际节拍数 (精确计算附点 1.5x)
     const getNoteBeats = (n: Note): number => {
       const dur = n.duration || 1.0;
       if (n.isDotted) {
-        // 如果已经乘过 1.5 (如 1.5, 0.75, 0.375, 0.1875) 则直接返回，否则乘 1.5
         if (dur === 1.0 || dur === 0.5 || dur === 0.25 || dur === 0.125 || dur === 0.0625) {
           return dur * 1.5;
         }
@@ -126,58 +107,47 @@ export const Toolbar = () => {
       return dur;
     };
 
-    let inSlur = false;
-    let slurHeadIndex = -1;
+    // 分析音符轨道的延音线与同音连音线 (Tie)
+    const analyzeTrackTies = (notesList: Note[]) => {
+      const isTied = new Array(notesList.length).fill(false);
+      const tiedDur = new Array(notesList.length).fill(0);
+      let inSlur = false;
+      let slurHeadIndex = -1;
 
-    for (let i = 0; i < allNotes.length; i++) {
-      const note = allNotes[i];
-
-      // A: 简谱增时线/延音线 `-` (pitch === -1) 自动作为上一正音符的延音持续
-      if (note.pitch === -1 && i > 0) {
-        isTiedWithPrev[i] = true;
+      for (let i = 0; i < notesList.length; i++) {
+        const note = notesList[i];
+        if (note.pitch === -1 && i > 0) isTied[i] = true;
+        if (note.slurStart || note.tieStart) { inSlur = true; slurHeadIndex = i; }
+        if (inSlur && i > 0 && slurHeadIndex !== -1 && i > slurHeadIndex) {
+          const prevNote = notesList[i - 1];
+          if (
+            note.pitch > 0 &&
+            note.pitch === prevNote.pitch &&
+            (note.octave || 0) === (prevNote.octave || 0) &&
+            (note.accidental || null) === (prevNote.accidental || null)
+          ) {
+            isTied[i] = true;
+          } else if (note.pitch > 0) {
+            slurHeadIndex = i;
+          }
+        }
+        if (note.slurEnd || note.tieEnd) { inSlur = false; slurHeadIndex = -1; }
       }
 
-      // B: 同音连音线 (Tie)
-      if (note.slurStart || note.tieStart) {
-        inSlur = true;
-        slurHeadIndex = i;
-      }
-
-      if (inSlur && i > 0 && slurHeadIndex !== -1 && i > slurHeadIndex) {
-        const prevNote = allNotes[i - 1];
-        const isSamePitch =
-          note.pitch > 0 &&
-          note.pitch === prevNote.pitch &&
-          (note.octave || 0) === (prevNote.octave || 0) &&
-          (note.accidental || null) === (prevNote.accidental || null);
-
-        if (isSamePitch) {
-          isTiedWithPrev[i] = true;
-        } else if (note.pitch > 0) {
-          slurHeadIndex = i;
+      for (let i = 0; i < notesList.length; i++) {
+        if (!isTied[i] && notesList[i].pitch > 0) {
+          let totalBeats = getNoteBeats(notesList[i]);
+          let j = i + 1;
+          while (j < notesList.length && isTied[j]) {
+            totalBeats += getNoteBeats(notesList[j]);
+            j++;
+          }
+          tiedDur[i] = totalBeats;
         }
       }
+      return { isTied, tiedDur };
+    };
 
-      if (note.slurEnd || note.tieEnd) {
-        inSlur = false;
-        slurHeadIndex = -1;
-      }
-    }
-
-    // 计算每个首发音符的总延音持续时值 (Beats)
-    for (let i = 0; i < allNotes.length; i++) {
-      if (!isTiedWithPrev[i] && allNotes[i].pitch > 0) {
-        let totalBeats = getNoteBeats(allNotes[i]);
-        let j = i + 1;
-        while (j < allNotes.length && isTiedWithPrev[j]) {
-          totalBeats += getNoteBeats(allNotes[j]);
-          j++;
-        }
-        totalTiedDuration[i] = totalBeats;
-      }
-    }
-
-    // 3. 逐个音符进行精准节拍高亮与音色播放
     const tempo = score.tempo || 120;
     const beatDurationSecs = 60 / tempo;
 
@@ -194,56 +164,111 @@ export const Toolbar = () => {
       });
     };
 
-    let currentIndex = startIndex;
-    while (currentIndex < allNotes.length && playRef.current) {
-      // 检查是否有外部点击音符发起的即时跳转请求 (Seek)
-      if (seekTargetNoteIdRef.current) {
-        const targetIdx = allNotes.findIndex(n => n.id === seekTargetNoteIdRef.current);
-        seekTargetNoteIdRef.current = null;
-        if (targetIdx !== -1) {
-          currentIndex = targetIdx;
+    // 展平第一声部音符
+    const allVoice1Notes: Note[] = [];
+    score.measures.forEach(m => {
+      m.notes.forEach(n => allVoice1Notes.push(n));
+    });
+
+    const v1Analysis = analyzeTrackTies(allVoice1Notes);
+
+    // 展平第二声部音符 (如果开启了第二声部)
+    const allVoice2Notes: Note[] = [];
+    if (score.hasSecondVoice) {
+      score.measures.forEach(m => {
+        (m.secondVoiceNotes || []).forEach(n => allVoice2Notes.push(n));
+      });
+    }
+    const v2Analysis = analyzeTrackTies(allVoice2Notes);
+
+    // 确定播放起始小节/音符
+    let startMeasureIdx = 0;
+    if (activeMeasureId) {
+      const idx = score.measures.findIndex(m => m.id === activeMeasureId);
+      if (idx !== -1) startMeasureIdx = idx;
+    }
+
+    let globalV1Idx = 0;
+    let globalV2Idx = 0;
+
+    // 前进到起始小节对应的全局索引
+    for (let mi = 0; mi < startMeasureIdx; mi++) {
+      globalV1Idx += score.measures[mi].notes.length;
+      if (score.hasSecondVoice) {
+        globalV2Idx += (score.measures[mi].secondVoiceNotes || []).length;
+      }
+    }
+
+    // 逐个小节进行双轨多复音时间分片播放 (Time-Sliced Dual-Track Playback)
+    for (let mi = startMeasureIdx; mi < score.measures.length && playRef.current; mi++) {
+      const measure = score.measures[mi];
+      const v1Notes = measure.notes;
+      const v2Notes = score.hasSecondVoice ? (measure.secondVoiceNotes || []) : [];
+
+      // 构建该小节内的多轨事件时间轴
+      let t1 = 0;
+      const v1Events = v1Notes.map((n, idx) => {
+        const start = t1;
+        const beats = getNoteBeats(n);
+        const gIdx = globalV1Idx + idx;
+        t1 += beats;
+        return { note: n, start, beats, globalIdx: gIdx, isVoice2: false };
+      });
+
+      let t2 = 0;
+      const v2Events = v2Notes.map((n, idx) => {
+        const start = t2;
+        const beats = getNoteBeats(n);
+        const gIdx = globalV2Idx + idx;
+        t2 += beats;
+        return { note: n, start, beats, globalIdx: gIdx, isVoice2: true };
+      });
+
+      globalV1Idx += v1Notes.length;
+      globalV2Idx += v2Notes.length;
+
+      const measureDurationBeats = Math.max(t1, t2, 1.0);
+      const uniqueTimestamps = Array.from(
+        new Set([0, ...v1Events.map(e => e.start), ...v2Events.map(e => e.start)])
+      ).sort((a, b) => a - b);
+
+      for (let ti = 0; ti < uniqueTimestamps.length && playRef.current; ti++) {
+        // 检查是否有外部点击音符发起的即时跳转请求 (Seek)
+        if (seekTargetNoteIdRef.current) {
+          seekTargetNoteIdRef.current = null;
+          // 重新从被点击的位置重新计算 (下次播放)
+          break;
         }
-      }
 
-      if (currentIndex >= allNotes.length || !playRef.current) break;
+        const currT = uniqueTimestamps[ti];
+        const nextT = ti < uniqueTimestamps.length - 1 ? uniqueTimestamps[ti + 1] : measureDurationBeats;
+        const sliceBeats = nextT - currT;
 
-      const note = allNotes[currentIndex];
-
-      // 没有输入音符的空白占位符（pitch === -2）直接跳过，不暂停、不发声
-      if (note.pitch === -2) {
-        currentIndex++;
-        continue;
-      }
-
-      setPlayingNoteId(note.id);
-      const noteBeats = getNoteBeats(note);
-
-      // 主旋律发声 (只有首发音符触发琴音，延音线与被连音符不重复敲击)
-      if (note.pitch > 0 && !isTiedWithPrev[currentIndex]) {
-        const playDurBeats = totalTiedDuration[currentIndex] || noteBeats;
-        playNote(note.pitch, note.octave, note.accidental, score.keySignature, playDurBeats, tempo);
-      }
-
-      // 和弦伴奏多复音同步发声 (Polyphonic Accompaniment in sync!)
-      if (note.chord && score.playAccompaniment !== false) {
-        // 自动计算和弦的跨拍总时值：向后累加，直到遇到下一个有和弦标记的音符或曲终
-        let chordSpanBeats = noteBeats;
-        for (let k = currentIndex + 1; k < allNotes.length; k++) {
-          const nextN = allNotes[k];
-          if (nextN.pitch === -2) continue;
-          if (nextN.chord) break; // 遇到新和弦，当前和弦跨度结束
-          chordSpanBeats += getNoteBeats(nextN);
+        // 1. 声部 1 在当前时间点发音
+        const v1Ev = v1Events.find(e => Math.abs(e.start - currT) < 0.001);
+        if (v1Ev && v1Ev.note.pitch !== -2) {
+          setPlayingNoteId(v1Ev.note.id);
+          if (v1Ev.note.pitch > 0 && !v1Analysis.isTied[v1Ev.globalIdx]) {
+            const playDur = v1Analysis.tiedDur[v1Ev.globalIdx] || v1Ev.beats;
+            playNote(v1Ev.note.pitch, v1Ev.note.octave, v1Ev.note.accidental, score.keySignature, playDur, tempo);
+          }
+          // 和弦伴奏
+          if (v1Ev.note.chord && score.playAccompaniment !== false) {
+            const chordPlayDur = Math.max(1.5, v1Ev.beats * beatDurationSecs * 2);
+            playChord(v1Ev.note.chord, chordPlayDur, 0.38);
+          }
         }
-        const chordPlayDur = Math.max(1.5, chordSpanBeats * beatDurationSecs);
-        playChord(note.chord, chordPlayDur, 0.38);
-      }
 
-      // 精确按音符实际节拍时值等待
-      await interruptibleSleep(noteBeats * beatDurationSecs * 1000);
+        // 2. 声部 2 (副声部/低音声部) 在当前时间点同步发音
+        const v2Ev = v2Events.find(e => Math.abs(e.start - currT) < 0.001);
+        if (v2Ev && v2Ev.note.pitch > 0 && !v2Analysis.isTied[v2Ev.globalIdx]) {
+          const playDur2 = v2Analysis.tiedDur[v2Ev.globalIdx] || v2Ev.beats;
+          playNote(v2Ev.note.pitch, v2Ev.note.octave, v2Ev.note.accidental, score.keySignature, playDur2, tempo);
+        }
 
-      // 如果在等待期间被外部跳转打断，不要递增 currentIndex，而是直接进入下一轮循环处理跳转目标
-      if (!seekTargetNoteIdRef.current) {
-        currentIndex++;
+        if (sliceBeats > 0.001) {
+          await interruptibleSleep(sliceBeats * beatDurationSecs * 1000);
+        }
       }
     }
 
@@ -336,6 +361,18 @@ export const Toolbar = () => {
       icon: '+页',
       action: () => insertPage(8)
     },
+    {
+      label: score.hasSecondVoice ? '关闭双声部' : '开启双声部',
+      icon: '👥',
+      action: () => toggleSecondVoice()
+    },
+    ...(score.hasSecondVoice ? [
+      {
+        label: activeVoice === 1 ? '切到声部 2' : '切到声部 1',
+        icon: activeVoice === 1 ? '声部1' : '声部2',
+        action: () => setActiveVoice(activeVoice === 1 ? 2 : 1)
+      }
+    ] : [])
   ];
 
   const textTools = [

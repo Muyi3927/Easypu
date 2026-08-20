@@ -42,6 +42,7 @@ export const ScoreEditor = () => {
     pasteLyricsAtNote,
     addLyricRow,
     deleteLyricRow,
+    activeVoice,
     insertPage
   } = useScore();
   const {
@@ -1582,42 +1583,98 @@ export const ScoreEditor = () => {
                               </div>
                             )}
 
-                              <div className="measure-notes">
-                                {(() => {
-                                  const notes = measure.notes;
-                                  let currentBeatSum = 0;
+                              <div className="measure-voices-container">
+                                {/* 第一声部 (Voice 1) */}
+                                <div className={`measure-voice-row measure-voice-1 ${activeVoice === 1 && !isPreviewMode ? 'active-voice-row' : ''}`}>
+                                  {score.hasSecondVoice && (
+                                    <span className="voice-prefix-tag" onClick={() => selectNote(measure.id, measure.notes[0]?.id, 1)}>
+                                      {score.voice1Name || '1部'}
+                                    </span>
+                                  )}
+                                  <div className="measure-notes">
+                                    {(() => {
+                                      const notes = measure.notes;
+                                      let currentBeatSum = 0;
 
-                                  return notes.map((note) => {
-                                    currentBeatSum += note.duration;
-                                    const isBeatEnd = Math.abs(currentBeatSum - Math.round(currentBeatSum)) < 0.001;
-                                    return (
-                                      <NoteBlock
-                                        key={note.id}
-                                        note={note}
-                                        isActive={!isPreviewMode && activeTab === 'notes' && activeNoteId === note.id}
-                                        isPlaying={playingNoteId === note.id}
-                                        noteFont={score.noteFont}
-                                        chordFont={score.chordFont}
-                                        showChords={score.showChords}
-                                        octaveDotSize={score.octaveDotSize || 6}
-                                        isBeatEnd={isBeatEnd}
-                                        isPreviewMode={isPreviewMode}
-                                        onClick={() => {
-                                          selectNote(measure.id, note.id);
-                                          if (!isPreviewMode) {
-                                            if (activeTab !== 'text' && activeTab !== 'chords') {
-                                              setActiveTab('notes');
-                                            }
-                                            if (isMultiSelectMode) {
-                                              setIsMultiSelectMode(false);
-                                              setSelectedMeasureIds([]);
-                                            }
-                                          }
-                                        }}
-                                      />
-                                    );
-                                  });
-                                })()}
+                                      return notes.map((note) => {
+                                        currentBeatSum += note.duration;
+                                        const isBeatEnd = Math.abs(currentBeatSum - Math.round(currentBeatSum)) < 0.001;
+                                        return (
+                                          <NoteBlock
+                                            key={note.id}
+                                            note={note}
+                                            isActive={!isPreviewMode && activeTab === 'notes' && activeNoteId === note.id}
+                                            isPlaying={playingNoteId === note.id}
+                                            noteFont={score.noteFont}
+                                            chordFont={score.chordFont}
+                                            showChords={score.showChords}
+                                            octaveDotSize={score.octaveDotSize || 6}
+                                            isBeatEnd={isBeatEnd}
+                                            isPreviewMode={isPreviewMode}
+                                            onClick={() => {
+                                              selectNote(measure.id, note.id, 1);
+                                              if (!isPreviewMode) {
+                                                if (activeTab !== 'text' && activeTab !== 'chords') {
+                                                  setActiveTab('notes');
+                                                }
+                                                if (isMultiSelectMode) {
+                                                  setIsMultiSelectMode(false);
+                                                  setSelectedMeasureIds([]);
+                                                }
+                                              }
+                                            }}
+                                          />
+                                        );
+                                      });
+                                    })()}
+                                  </div>
+                                </div>
+
+                                {/* 第二声部 (Voice 2) */}
+                                {score.hasSecondVoice && measure.secondVoiceNotes && (
+                                  <div className={`measure-voice-row measure-voice-2 ${activeVoice === 2 && !isPreviewMode ? 'active-voice-row' : ''}`}>
+                                    <span className="voice-prefix-tag" onClick={() => selectNote(measure.id, measure.secondVoiceNotes![0]?.id, 2)}>
+                                      {score.voice2Name || '2部'}
+                                    </span>
+                                    <div className="measure-notes">
+                                      {(() => {
+                                        const notes = measure.secondVoiceNotes;
+                                        let currentBeatSum = 0;
+
+                                        return notes.map((note) => {
+                                          currentBeatSum += note.duration;
+                                          const isBeatEnd = Math.abs(currentBeatSum - Math.round(currentBeatSum)) < 0.001;
+                                          return (
+                                            <NoteBlock
+                                              key={note.id}
+                                              note={note}
+                                              isActive={!isPreviewMode && activeTab === 'notes' && activeNoteId === note.id}
+                                              isPlaying={playingNoteId === note.id}
+                                              noteFont={score.noteFont}
+                                              chordFont={score.chordFont}
+                                              showChords={false}
+                                              octaveDotSize={score.octaveDotSize || 6}
+                                              isBeatEnd={isBeatEnd}
+                                              isPreviewMode={isPreviewMode}
+                                              onClick={() => {
+                                                selectNote(measure.id, note.id, 2);
+                                                if (!isPreviewMode) {
+                                                  if (activeTab !== 'text' && activeTab !== 'chords') {
+                                                    setActiveTab('notes');
+                                                  }
+                                                  if (isMultiSelectMode) {
+                                                    setIsMultiSelectMode(false);
+                                                    setSelectedMeasureIds([]);
+                                                  }
+                                                }
+                                              }}
+                                            />
+                                          );
+                                        });
+                                      })()}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             
                             {measure.barlineRight === 'repeat-end' ? (

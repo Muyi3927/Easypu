@@ -10,10 +10,13 @@ interface ScoreContextType {
   setActiveMeasureId: React.Dispatch<React.SetStateAction<string | null>>;
   activeNoteId: string | null;
   setActiveNoteId: React.Dispatch<React.SetStateAction<string | null>>;
+  activeVoice: 1 | 2;
+  setActiveVoice: (v: 1 | 2) => void;
+  toggleSecondVoice: (enable?: boolean) => void;
   playingNoteId: string | null;
   setPlayingNoteId: React.Dispatch<React.SetStateAction<string | null>>;
   updateActiveNote: (note: Partial<Omit<Note, 'id'>>, advanceCursor?: boolean) => void;
-  selectNote: (measureId: string, noteId: string) => void;
+  selectNote: (measureId: string, noteId: string, voice?: 1 | 2) => void;
   toggleSlurStart: (noteId: string) => void;
   toggleSlurEnd: (noteId: string) => void;
   insertMeasureAfter: (measureId: string) => void;
@@ -49,22 +52,26 @@ interface ScoreContextType {
   markSaved: () => void;
 }
 
-export const generatePlaceholderMeasure = (timeSignature: string = '4/4'): Measure => {
+export const generatePlaceholderMeasure = (timeSignature: string = '4/4', hasSecondVoice: boolean = false): Measure => {
   const timeSigParts = timeSignature.split('/');
   const beatsCount = parseInt(timeSigParts[0]) || 4;
   const beatValue = parseInt(timeSigParts[1]) || 4;
   const singleBeatDur = 4 / beatValue;
 
-  return {
-    id: uuidv4(),
-    notes: Array.from({ length: beatsCount }).map(() => ({
+  const createNotes = () =>
+    Array.from({ length: beatsCount }).map(() => ({
       id: uuidv4(),
       pitch: -2, // -2 means placeholder
       octave: 0,
       duration: singleBeatDur,
       isDotted: false,
       accidental: null
-    }))
+    }));
+
+  return {
+    id: uuidv4(),
+    notes: createNotes(),
+    secondVoiceNotes: hasSecondVoice ? createNotes() : undefined
   };
 };
 
@@ -181,6 +188,7 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
   const [score, setScoreState] = useState<Score>(initialScore);
   const [activeMeasureId, setActiveMeasureId] = useState<string | null>(score.measures[0]?.id || null);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(score.measures[0]?.notes[0]?.id || null);
+  const [activeVoice, setActiveVoiceState] = useState<1 | 2>(1);
   const [playingNoteId, setPlayingNoteId] = useState<string | null>(null);
 
   const [isDirty, setIsDirty] = useState(false);
@@ -195,6 +203,12 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
   const scoreRef = useRef<Score>(score);
   const activeMeasureIdRef = useRef<string | null>(activeMeasureId);
   const activeNoteIdRef = useRef<string | null>(activeNoteId);
+  const activeVoiceRef = useRef<1 | 2>(1);
+
+  const setActiveVoice = useCallback((v: 1 | 2) => {
+    activeVoiceRef.current = v;
+    setActiveVoiceState(v);
+  }, []);
 
   // 外部直接 setScore（如设置面板修改样式、标题等）
   const setScore = useCallback((action: Score | ((prev: Score) => Score)) => {
@@ -337,53 +351,110 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
     const targetBeats = beatsPerMeasure * (4 / beatValue);
     const singleBeatDur = 4 / beatValue;
 
-    let currentTotal = measure.notes.reduce((sum, n) => sum + n.duration, 0);
-    let newNotes = [...measure.notes];
+    const adjustList = (notesList: Note[]) => {
+      let currentTotal = notesList.reduce((sum, n) => sum + n.duration, 0);
+      let newNotes = [...notesList];
 
-    // Fill remaining duration with placeholders matching beat subdivisions
-    if (currentTotal < targetBeats - 0.001) {
-      let remaining = targetBeats - currentTotal;
-      while (remaining > 0.001) {
-        const dur = remaining >= singleBeatDur ? singleBeatDur : remaining;
-        newNotes.push({
-          id: uuidv4(),
-          pitch: -2,
-          octave: 0,
-          duration: dur,
-          isDotted: false,
-          accidental: null,
-          tieStart: false,
-          slurStart: false,
-          slurEnd: false,
-        });
-        remaining -= dur;
-      }
-    } else if (currentTotal > targetBeats + 0.001) {
-      while (currentTotal > targetBeats + 0.001 && newNotes.length > 0) {
-        const lastIdx = newNotes.length - 1;
-        const lastNote = newNotes[lastIdx];
-        if (lastNote.pitch === -2 && lastNote.id !== currentActiveNoteId) {
-          if (currentTotal - lastNote.duration >= targetBeats - 0.001) {
-            currentTotal -= lastNote.duration;
-            newNotes.pop();
+      // Fill remaining duration with placeholders matching beat subdivisions
+      if (currentTotal < targetBeats - 0.001) {
+        let remaining = targetBeats - currentTotal;
+        while (remaining > 0.001) {
+          const dur = remaining >= singleBeatDur ? singleBeatDur : remaining;
+          newNotes.push({
+            id: uuidv4(),
+            pitch: -2,
+            octave: 0,
+            duration: dur,
+            isDotted: false,
+            accidental: null,
+            tieStart: false,
+            slurStart: false,
+            slurEnd: false,
+          });
+          remaining -= dur;
+        }
+      } else if (currentTotal > targetBeats + 0.001) {
+        while (currentTotal > targetBeats + 0.001 && newNotes.length > 0) {
+          const lastIdx = newNotes.length - 1;
+          const lastNote = newNotes[lastIdx];
+          if (lastNote.pitch === -2 && lastNote.id !== currentActiveNoteId) {
+            if (currentTotal - lastNote.duration >= targetBeats - 0.001) {
+              currentTotal -= lastNote.duration;
+              newNotes.pop();
+            } else {
+              newNotes[lastIdx] = { ...lastNote, duration: lastNote.duration - (currentTotal - targetBeats) };
+              currentTotal = targetBeats;
+            }
           } else {
-            newNotes[lastIdx] = { ...lastNote, duration: lastNote.duration - (currentTotal - targetBeats) };
-            currentTotal = targetBeats;
+            break;
           }
-        } else {
-          break;
         }
       }
-    }
+      return newNotes;
+    };
 
-    return { ...measure, notes: newNotes };
+    const adjustedVoice1 = adjustList(measure.notes);
+    const adjustedVoice2 = measure.secondVoiceNotes ? adjustList(measure.secondVoiceNotes) : undefined;
+
+    return { ...measure, notes: adjustedVoice1, secondVoiceNotes: adjustedVoice2 };
   };
 
-  const selectNote = (measureId: string, noteId: string) => {
+  const selectNote = (measureId: string, noteId: string, voice?: 1 | 2) => {
     activeMeasureIdRef.current = measureId;
     activeNoteIdRef.current = noteId;
     setActiveMeasureId(measureId);
     setActiveNoteId(noteId);
+
+    if (voice !== undefined) {
+      activeVoiceRef.current = voice;
+      setActiveVoiceState(voice);
+    } else {
+      const m = scoreRef.current.measures.find(measure => measure.id === measureId);
+      if (m) {
+        if (m.secondVoiceNotes?.some(n => n.id === noteId)) {
+          activeVoiceRef.current = 2;
+          setActiveVoiceState(2);
+        } else {
+          activeVoiceRef.current = 1;
+          setActiveVoiceState(1);
+        }
+      }
+    }
+  };
+
+  const toggleSecondVoice = (enable?: boolean) => {
+    const currentScore = scoreRef.current;
+    const targetState = enable !== undefined ? enable : !currentScore.hasSecondVoice;
+    const timeSig = currentScore.timeSignature || '4/4';
+    const timeSigParts = timeSig.split('/');
+    const beatsCount = parseInt(timeSigParts[0]) || 4;
+    const beatValue = parseInt(timeSigParts[1]) || 4;
+    const singleBeatDur = 4 / beatValue;
+
+    const newMeasures = currentScore.measures.map(m => {
+      if (targetState) {
+        const secondNotes = (m.secondVoiceNotes && m.secondVoiceNotes.length > 0)
+          ? m.secondVoiceNotes
+          : Array.from({ length: beatsCount }).map(() => ({
+              id: uuidv4(),
+              pitch: -2,
+              octave: 0,
+              duration: singleBeatDur,
+              isDotted: false,
+              accidental: null
+            }));
+        return { ...m, secondVoiceNotes: secondNotes };
+      } else {
+        const { secondVoiceNotes, ...rest } = m;
+        return rest as Measure;
+      }
+    });
+
+    applyScoreUpdate({ ...currentScore, hasSecondVoice: targetState, measures: newMeasures });
+    if (!targetState && activeVoiceRef.current === 2) {
+      activeVoiceRef.current = 1;
+      setActiveVoiceState(1);
+    }
   };
 
   const updateActiveNote = (noteData: Partial<Omit<Note, 'id'>>, advanceCursor: boolean = true) => {
@@ -408,14 +479,19 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
     // === Step 1: Compute what the new score will look like ===
     let nextNoteId: string | null = null;
     let nextMeasureId: string | null = null;
-    let newMeasures = currentScore.measures;
+    const currentTargetVoice = activeVoiceRef.current;
 
-    newMeasures = currentScore.measures.map(measure => {
+    const newMeasures = currentScore.measures.map(measure => {
       if (measure.id === currentMeasureId) {
-        const targetIndex = measure.notes.findIndex(n => n.id === currentNoteId);
+        const inVoice1 = measure.notes.some(n => n.id === currentNoteId);
+        const inVoice2 = !inVoice1 && measure.secondVoiceNotes && measure.secondVoiceNotes.some(n => n.id === currentNoteId);
+        const isVoice2 = inVoice2 || (currentTargetVoice === 2 && measure.secondVoiceNotes && measure.secondVoiceNotes.length > 0);
+
+        const voiceNotes = isVoice2 ? (measure.secondVoiceNotes || []) : measure.notes;
+        const targetIndex = voiceNotes.findIndex(n => n.id === currentNoteId);
         if (targetIndex === -1) return measure;
 
-        const targetNote = measure.notes[targetIndex];
+        const targetNote = voiceNotes[targetIndex];
         const oldDuration = targetNote.duration;
         const newDuration = noteData.duration !== undefined ? noteData.duration : oldDuration;
 
@@ -423,7 +499,6 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
 
         if (newDuration < oldDuration - 0.001) {
           // Note takes less than old slot (e.g. 1/8 note 0.5 replacing 1.0 slot):
-          // The updated note takes newDuration, and the remaining beat duration becomes a placeholder right after!
           const updatedTarget: Note = { ...targetNote, ...noteData, duration: newDuration };
           const remainderPlaceholder: Note = {
             id: uuidv4(),
@@ -437,10 +512,10 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
             slurEnd: false,
           };
           newNotes = [
-            ...measure.notes.slice(0, targetIndex),
+            ...voiceNotes.slice(0, targetIndex),
             updatedTarget,
             remainderPlaceholder,
-            ...measure.notes.slice(targetIndex + 1)
+            ...voiceNotes.slice(targetIndex + 1)
           ];
           if (advanceCursor) {
             nextNoteId = remainderPlaceholder.id;
@@ -448,13 +523,12 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
           }
         } else if (newDuration > oldDuration + 0.001) {
           // Note takes more than old slot (e.g. dotted 1.5 replacing 1.0 slot):
-          // Consume difference from following notes
           let diffToConsume = newDuration - oldDuration;
           const updatedTarget: Note = { ...targetNote, ...noteData, duration: newDuration };
           const followingNotes: Note[] = [];
 
-          for (let fi = targetIndex + 1; fi < measure.notes.length; fi++) {
-            const fNote = measure.notes[fi];
+          for (let fi = targetIndex + 1; fi < voiceNotes.length; fi++) {
+            const fNote = voiceNotes[fi];
             if (diffToConsume > 0.001) {
               if (fNote.duration <= diffToConsume + 0.001) {
                 diffToConsume -= fNote.duration;
@@ -468,7 +542,7 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
           }
 
           newNotes = [
-            ...measure.notes.slice(0, targetIndex),
+            ...voiceNotes.slice(0, targetIndex),
             updatedTarget,
             ...followingNotes
           ];
@@ -483,7 +557,7 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
         } else {
           // Same duration
           const updatedTarget: Note = { ...targetNote, ...noteData };
-          newNotes = measure.notes.map(n => n.id === currentNoteId ? updatedTarget : n);
+          newNotes = voiceNotes.map(n => n.id === currentNoteId ? updatedTarget : n);
           if (advanceCursor) {
             const nextIdxInNew = newNotes.findIndex(n => n.id === updatedTarget.id);
             if (nextIdxInNew !== -1 && nextIdxInNew < newNotes.length - 1) {
@@ -493,8 +567,11 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        const adjustedMeasure = adjustMeasureLength({ ...measure, notes: newNotes }, currentNoteId, currentScore.timeSignature);
-        return adjustedMeasure;
+        const updatedMeasure = isVoice2
+          ? { ...measure, secondVoiceNotes: newNotes }
+          : { ...measure, notes: newNotes };
+
+        return adjustMeasureLength(updatedMeasure, currentNoteId, currentScore.timeSignature);
       }
       return measure;
     });
@@ -503,8 +580,12 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
       if (!nextNoteId) {
         const currentMeasureIndex = currentScore.measures.findIndex(m => m.id === currentMeasureId);
         if (currentMeasureIndex !== -1 && currentMeasureIndex < currentScore.measures.length - 1) {
-          nextMeasureId = currentScore.measures[currentMeasureIndex + 1].id;
-          nextNoteId = currentScore.measures[currentMeasureIndex + 1].notes[0]?.id || null;
+          const nextM = currentScore.measures[currentMeasureIndex + 1];
+          nextMeasureId = nextM.id;
+          const nextList = (currentTargetVoice === 2 && nextM.secondVoiceNotes && nextM.secondVoiceNotes.length > 0)
+            ? nextM.secondVoiceNotes
+            : nextM.notes;
+          nextNoteId = nextList[0]?.id || null;
         }
       }
     } else {
@@ -1357,6 +1438,9 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
         setActiveMeasureId,
         activeNoteId,
         setActiveNoteId,
+        activeVoice,
+        setActiveVoice,
+        toggleSecondVoice,
         playingNoteId,
         setPlayingNoteId,
         updateActiveNote,

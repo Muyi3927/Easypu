@@ -16,7 +16,8 @@ export interface Note {
 
 export interface Measure {
   id: string;
-  notes: Note[];
+  notes: Note[]; // 第一声部 (Voice 1 / 主声部)
+  secondVoiceNotes?: Note[]; // 第二声部 (Voice 2 / 副声部，可选)
   isBreak?: boolean; // Force line break after this measure
   barlineLeft?: 'normal' | 'repeat-start' | null;
   barlineRight?: 'normal' | 'repeat-end' | 'end' | 'double' | null;
@@ -59,6 +60,9 @@ export interface Score {
   octaveDotSize?: number; // 高低音点大小 (px)
   showChords?: boolean; // 是否显示和弦标记
   playAccompaniment?: boolean; // 播放时是否同步演奏和弦伴奏
+  hasSecondVoice?: boolean; // 是否开启双声部打谱 (第二声部)
+  voice1Name?: string; // 第一声部名称 (如 高音部 / 右手)
+  voice2Name?: string; // 第二声部名称 (如 低音部 / 左手)
   // 页码
   showPageNumber: boolean;
   pageNumberStyle: string;
