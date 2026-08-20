@@ -226,8 +226,16 @@ export const Toolbar = () => {
 
       // 和弦伴奏多复音同步发声 (Polyphonic Accompaniment in sync!)
       if (note.chord && score.playAccompaniment !== false) {
-        const chordPlayDur = Math.max(0.6, noteBeats * beatDurationSecs * 1.5);
-        playChord(note.chord, chordPlayDur);
+        // 自动计算和弦的跨拍总时值：向后累加，直到遇到下一个有和弦标记的音符或曲终
+        let chordSpanBeats = noteBeats;
+        for (let k = currentIndex + 1; k < allNotes.length; k++) {
+          const nextN = allNotes[k];
+          if (nextN.pitch === -2) continue;
+          if (nextN.chord) break; // 遇到新和弦，当前和弦跨度结束
+          chordSpanBeats += getNoteBeats(nextN);
+        }
+        const chordPlayDur = Math.max(1.5, chordSpanBeats * beatDurationSecs);
+        playChord(note.chord, chordPlayDur, 0.7);
       }
 
       // 精确按音符实际节拍时值等待
