@@ -458,7 +458,7 @@
 .measure {
   display: flex;
   align-items: center;
-  padding: 10px 0;
+  padding: 14px 0 10px 0;
   border: 1px dashed transparent;
   border-radius: 4px;
   flex: 1;
@@ -715,7 +715,6 @@
 /* 和弦标记符号显示层 (Chord Symbol) */
 .note-chord-badge {
   position: absolute;
-  bottom: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%);
   font-weight: 800;
@@ -723,11 +722,11 @@
   line-height: 1;
   pointer-events: auto;
   user-select: none;
-  z-index: 5;
-  padding: 0 3px;
+  z-index: 12;
+  padding: 0 4px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.12);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.15);
   letter-spacing: -0.2px;
 }
 

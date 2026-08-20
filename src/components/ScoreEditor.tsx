@@ -1910,14 +1910,15 @@ const NoteBlock = ({
       style={{ flex: note.duration }}
     >
       <div className="note-core">
-        {/* 和弦符号显示 (Chord Symbol) */}
+        {/* 和弦符号显示 (Chord Symbol) - 统一定位在最高层，绝不与连音线/高音点重叠 */}
         {showChords !== false && note.chord && (
           <div
             className="note-chord-badge"
             style={{
               fontFamily: chordFont?.fontFamily || 'Arial, sans-serif',
               fontSize: `${chordFont?.fontSize || 16}px`,
-              color: chordFont?.color || '#2563eb'
+              color: chordFont?.color || '#2563eb',
+              bottom: `calc(100% + ${18 + Math.max(0, (note.octave || 0) * 7)}px)`
             }}
           >
             {note.chord}
