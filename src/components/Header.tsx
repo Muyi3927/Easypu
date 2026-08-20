@@ -7,6 +7,7 @@ import { useParams } from 'react-router-dom';
 import { storageService } from '../services/StorageService';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { downloadScoreAudio } from '../utils/audio';
 
 import { useEffect, useState } from 'react';
 
@@ -19,6 +20,7 @@ export const Header = () => {
   const { showToast } = useToast();
 
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [isExportingAudio, setIsExportingAudio] = useState(false);
 
   // 页面意外关闭/刷新防丢保护
   useEffect(() => {
@@ -93,6 +95,20 @@ export const Header = () => {
     } catch (e: any) {
       showToast(`保存失败: ${e.message}`, 'error');
       return false;
+    }
+  };
+
+  const handleExportAudio = async () => {
+    if (isExportingAudio) return;
+    try {
+      setIsExportingAudio(true);
+      showToast(`正在离线渲染《${score.title || '乐谱'}》高保真音频...`, 'info');
+      const fileName = await downloadScoreAudio(score);
+      showToast(`已成功导出录音音频文件：${fileName}`, 'success');
+    } catch (err: any) {
+      showToast(`音频导出失败: ${err.message || '未知错误'}`, 'error');
+    } finally {
+      setIsExportingAudio(false);
     }
   };
 
@@ -256,6 +272,16 @@ export const Header = () => {
               <rect x="6" y="14" width="12" height="8"></rect>
             </svg>
             <span>导出 PDF</span>
+          </button>
+
+          <button className="btn btn-audio" onClick={handleExportAudio} disabled={isExportingAudio} title="导出全曲高保真录音音频并下载 (以曲谱标题命名)">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+            <span>{isExportingAudio ? '正在导出...' : '导出音频'}</span>
           </button>
         </div>
       </div>

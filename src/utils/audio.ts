@@ -8,6 +8,7 @@
 // -------------------------------------------------------------
 
 import { parseChordToMidiNotes } from './chord';
+import type { Score, Note } from '../types';
 
 export const pitchToOffset = [0, 0, 2, 4, 5, 7, 9, 11]; // 1-indexed: 1(Do)=0, 2(Re)=2, 3(Mi)=4, 4(Fa)=5, 5(Sol)=7, 6(La)=9, 7(Ti)=11
 
@@ -363,5 +364,357 @@ const playAcousticModeledNote = (ctx: AudioContext, frequency: number, durationS
     osc.start(now);
     osc.stop(now + durationSecs + 0.9);
   });
+};
+
+// -------------------------------------------------------------
+// 高保真 PCM 16-bit 44.1kHz WAV 音频编码器 (标准立体声无损母带格式)
+// -------------------------------------------------------------
+export const audioBufferToWav = (buffer: AudioBuffer): Blob => {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const format = 1; // PCM 格式
+  const bitDepth = 16;
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numChannels * bytesPerSample;
+
+  const length = buffer.length;
+  const dataSize = length * blockAlign;
+  const headerSize = 44;
+  const totalSize = headerSize + dataSize;
+
+  const arrayBuffer = new ArrayBuffer(totalSize);
+  const view = new DataView(arrayBuffer);
+
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+
+  // RIFF 标头
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, 'WAVE');
+
+  // fmt 子块
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true); // 子块大小: 16
+  view.setUint16(20, format, true); // PCM 格式编码: 1
+  view.setUint16(22, numChannels, true); // 声道数: 2 (立体声)
+  view.setUint32(24, sampleRate, true); // 采样率: 44100Hz
+  view.setUint32(28, sampleRate * blockAlign, true); // 字节率
+  view.setUint16(32, blockAlign, true); // 块对齐
+  view.setUint16(34, bitDepth, true); // 位深: 16-bit
+
+  // data 子块
+  writeString(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  // 写入双声道交织 PCM 数据并进行防破音峰值限幅
+  const channelData: Float32Array[] = [];
+  for (let i = 0; i < numChannels; i++) {
+    channelData.push(buffer.getChannelData(i));
+  }
+
+  let offset = 44;
+  for (let i = 0; i < length; i++) {
+    for (let channel = 0; channel < numChannels; channel++) {
+      let sample = channelData[channel][i];
+      // 软限幅防止溢出爆音
+      sample = Math.max(-1.0, Math.min(1.0, sample));
+      const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      view.setInt16(offset, intSample, true);
+      offset += 2;
+    }
+  }
+
+  return new Blob([view], { type: 'audio/wav' });
+};
+
+// -------------------------------------------------------------
+// 极速离线音频渲染引擎 (Offline Audio Renderer)
+// 1 秒内将全谱（主旋律 + 第二声部 + 和弦伴奏 + 延音/连音线）渲染为无杂音的高保真音频
+// -------------------------------------------------------------
+export const exportScoreToAudio = async (score: Score): Promise<Blob> => {
+  await preloadPianoSoundfont();
+
+  const tempo = score.tempo || 120;
+  const beatDurationSecs = 60 / tempo;
+
+  // 辅助计算音符拍数 (含附点 1.5x)
+  const getNoteBeats = (n: Note): number => {
+    const dur = n.duration || 1.0;
+    if (n.isDotted) {
+      if (dur === 1.0 || dur === 0.5 || dur === 0.25 || dur === 0.125 || dur === 0.0625) {
+        return dur * 1.5;
+      }
+    }
+    return dur;
+  };
+
+  // 分析连音线与延音线
+  const analyzeTrackTies = (notesList: Note[]) => {
+    const isTied = new Array(notesList.length).fill(false);
+    const tiedDur = new Array(notesList.length).fill(0);
+    let inSlur = false;
+    let slurHeadIndex = -1;
+
+    for (let i = 0; i < notesList.length; i++) {
+      const note = notesList[i];
+      if (note.pitch === -1 && i > 0) isTied[i] = true;
+      if (note.slurStart || note.tieStart) { inSlur = true; slurHeadIndex = i; }
+      if (inSlur && i > 0 && slurHeadIndex !== -1 && i > slurHeadIndex) {
+        const prevNote = notesList[i - 1];
+        if (
+          note.pitch > 0 &&
+          note.pitch === prevNote.pitch &&
+          (note.octave || 0) === (prevNote.octave || 0) &&
+          (note.accidental || null) === (prevNote.accidental || null)
+        ) {
+          isTied[i] = true;
+        } else if (note.pitch > 0) {
+          slurHeadIndex = i;
+        }
+      }
+      if (note.slurEnd || note.tieEnd) { inSlur = false; slurHeadIndex = -1; }
+    }
+
+    for (let i = 0; i < notesList.length; i++) {
+      if (!isTied[i] && notesList[i].pitch > 0) {
+        let totalBeats = getNoteBeats(notesList[i]);
+        let j = i + 1;
+        while (j < notesList.length && isTied[j]) {
+          totalBeats += getNoteBeats(notesList[j]);
+          j++;
+        }
+        tiedDur[i] = totalBeats;
+      }
+    }
+    return { isTied, tiedDur };
+  };
+
+  const allVoice1Notes: Note[] = [];
+  score.measures.forEach(m => {
+    m.notes.forEach(n => allVoice1Notes.push(n));
+  });
+  const v1Analysis = analyzeTrackTies(allVoice1Notes);
+
+  const allVoice2Notes: Note[] = [];
+  if (score.hasSecondVoice) {
+    score.measures.forEach(m => {
+      (m.secondVoiceNotes || []).forEach(n => allVoice2Notes.push(n));
+    });
+  }
+  const v2Analysis = analyzeTrackTies(allVoice2Notes);
+
+  interface ScheduledNoteEvent {
+    time: number;
+    midi: number;
+    duration: number;
+    volume: number;
+  }
+
+  const scheduledEvents: ScheduledNoteEvent[] = [];
+
+  let globalV1Idx = 0;
+  let globalV2Idx = 0;
+  let currentPlaybackTime = 0.08; // 80ms 前置微静音，防止首音瞬态爆音
+
+  const v1Key = score.voice1KeySignature || score.keySignature;
+  const v2Key = score.voice2KeySignature || score.keySignature;
+
+  const [topStr, btmStr] = (score.timeSignature || '4/4').split('/');
+  const beatsPerMeasure = (parseInt(topStr) || 4) * (4 / (parseInt(btmStr) || 4));
+
+  for (let mi = 0; mi < score.measures.length; mi++) {
+    const measure = score.measures[mi];
+    const isNotePlayable = (n: Note) => n.pitch !== -2;
+    const measureHasNotes = measure.notes.some(isNotePlayable) || (score.hasSecondVoice && (measure.secondVoiceNotes || []).some(isNotePlayable));
+
+    if (!measureHasNotes) {
+      const hasMoreNotesLater = score.measures.slice(mi + 1).some(m =>
+        m.notes.some(isNotePlayable) || (score.hasSecondVoice && (m.secondVoiceNotes || []).some(isNotePlayable))
+      );
+      if (!hasMoreNotesLater) {
+        break; // 全谱结束
+      } else {
+        continue; // 跳过空白小节
+      }
+    }
+
+    const v1Notes = measure.notes;
+    const v2Notes = score.hasSecondVoice ? (measure.secondVoiceNotes || []) : [];
+
+    let t1 = 0;
+    const v1Events = v1Notes.map((n, idx) => {
+      const start = t1;
+      const beats = getNoteBeats(n);
+      const gIdx = globalV1Idx + idx;
+      t1 += beats;
+      return { note: n, start, beats, globalIdx: gIdx };
+    });
+
+    let t2 = 0;
+    const v2Events = v2Notes.map((n, idx) => {
+      const start = t2;
+      const beats = getNoteBeats(n);
+      const gIdx = globalV2Idx + idx;
+      t2 += beats;
+      return { note: n, start, beats, globalIdx: gIdx };
+    });
+
+    globalV1Idx += v1Notes.length;
+    globalV2Idx += v2Notes.length;
+
+    const measureDurationBeats = Math.max(t1, t2, 1.0);
+    const allTimestamps = Array.from(
+      new Set([0, ...v1Events.map(e => e.start), ...v2Events.map(e => e.start)])
+    ).sort((a, b) => a - b);
+
+    for (let ti = 0; ti < allTimestamps.length; ti++) {
+      const currT = allTimestamps[ti];
+      const nextT = ti < allTimestamps.length - 1 ? allTimestamps[ti + 1] : measureDurationBeats;
+      const sliceBeats = nextT - currT;
+
+      const v1Ev = v1Events.find(e => Math.abs(e.start - currT) < 0.001);
+      const v2Ev = v2Events.find(e => Math.abs(e.start - currT) < 0.001);
+
+      const v1HasSound = v1Ev && v1Ev.note.pitch !== -2;
+      const v2HasSound = v2Ev && v2Ev.note.pitch !== -2;
+
+      if (!v1HasSound && !v2HasSound) {
+        const hasNotesLaterInMeasure =
+          v1Events.some(e => e.start > currT && e.note.pitch !== -2) ||
+          v2Events.some(e => e.start > currT && e.note.pitch !== -2);
+        if (!hasNotesLaterInMeasure) {
+          break;
+        } else {
+          continue;
+        }
+      }
+
+      // 1. 声部 1 (主旋律 100% 音量)
+      if (v1HasSound && v1Ev && v1Ev.note.pitch > 0 && !v1Analysis.isTied[v1Ev.globalIdx]) {
+        const playDurBeats = v1Analysis.tiedDur[v1Ev.globalIdx] || v1Ev.beats;
+        const noteDurationSecs = Math.max(0.15, playDurBeats * beatDurationSecs);
+        const { midi } = calculateMidiNote(v1Ev.note.pitch, v1Ev.note.octave, v1Ev.note.accidental, v1Key);
+        scheduledEvents.push({
+          time: currentPlaybackTime,
+          midi,
+          duration: noteDurationSecs,
+          volume: 1.0
+        });
+      }
+
+      // 和弦伴奏 (38% 音量，智能持续跨度)
+      if (v1HasSound && v1Ev && v1Ev.note.chord && score.playAccompaniment !== false) {
+        const nextChordEv = v1Events.find(e => e.start > currT + 0.001 && !!e.note.chord);
+        const chordSpanBeats = nextChordEv
+          ? (nextChordEv.start - currT)
+          : Math.max(beatsPerMeasure - currT, measureDurationBeats - currT, 1.0);
+        const chordPlayDur = Math.max(0.3, chordSpanBeats * beatDurationSecs);
+        const midis = parseChordToMidiNotes(v1Ev.note.chord);
+        midis.forEach((midi, idx) => {
+          const noteVol = idx === 0 ? 0.38 * 1.05 : 0.38 * 0.8;
+          scheduledEvents.push({
+            time: currentPlaybackTime,
+            midi,
+            duration: chordPlayDur,
+            volume: noteVol
+          });
+        });
+      }
+
+      // 2. 声部 2 (副旋律/低音伴奏 60% 音量)
+      if (v2HasSound && v2Ev && v2Ev.note.pitch > 0 && !v2Analysis.isTied[v2Ev.globalIdx]) {
+        const playDurBeats2 = v2Analysis.tiedDur[v2Ev.globalIdx] || v2Ev.beats;
+        const noteDurationSecs2 = Math.max(0.15, playDurBeats2 * beatDurationSecs);
+        const { midi } = calculateMidiNote(v2Ev.note.pitch, v2Ev.note.octave, v2Ev.note.accidental, v2Key);
+        scheduledEvents.push({
+          time: currentPlaybackTime,
+          midi,
+          duration: noteDurationSecs2,
+          volume: 0.6
+        });
+      }
+
+      currentPlaybackTime += sliceBeats * beatDurationSecs;
+    }
+  }
+
+  const totalRenderDuration = Math.max(2.0, currentPlaybackTime + 1.8);
+  const sampleRate = 44100;
+  const offlineCtx = new OfflineAudioContext(2, Math.ceil(totalRenderDuration * sampleRate), sampleRate);
+
+  // 母带级动态压缩器
+  const compressor = offlineCtx.createDynamicsCompressor();
+  compressor.threshold.setValueAtTime(-18, 0);
+  compressor.knee.setValueAtTime(12, 0);
+  compressor.ratio.setValueAtTime(4, 0);
+  compressor.attack.setValueAtTime(0.003, 0);
+  compressor.release.setValueAtTime(0.25, 0);
+  compressor.connect(offlineCtx.destination);
+
+  for (const ev of scheduledEvents) {
+    let bestSample: { name: string; midi: number; buffer: AudioBuffer } | null = null;
+    let minDiff = 999;
+    for (const s of SALAMANDER_SAMPLES) {
+      const buf = sampleBufferCache.get(s.name);
+      if (buf) {
+        const diff = Math.abs(ev.midi - s.midi);
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestSample = { name: s.name, midi: s.midi, buffer: buf };
+        }
+      }
+    }
+
+    if (bestSample) {
+      const source = offlineCtx.createBufferSource();
+      source.buffer = bestSample.buffer;
+      source.playbackRate.setValueAtTime(Math.pow(2, (ev.midi - bestSample.midi) / 12), ev.time);
+
+      const gain = offlineCtx.createGain();
+      const targetPeak = 0.92 * ev.volume;
+      gain.gain.setValueAtTime(0.0001, ev.time);
+      gain.gain.linearRampToValueAtTime(targetPeak, ev.time + 0.003);
+
+      const decayTimeConstant = Math.max(1.8, ev.duration * 1.5);
+      gain.gain.setTargetAtTime(targetPeak * 0.65, ev.time + 0.03, decayTimeConstant);
+
+      const releaseStart = ev.time + ev.duration;
+      const releaseTimeConstant = Math.min(0.1, Math.max(0.05, ev.duration * 0.08));
+      gain.gain.setTargetAtTime(0.00001, releaseStart, releaseTimeConstant);
+
+      source.connect(gain);
+      gain.connect(compressor);
+
+      source.start(ev.time);
+      source.stop(releaseStart + 0.6);
+    }
+  }
+
+  const renderedBuffer = await offlineCtx.startRendering();
+  return audioBufferToWav(renderedBuffer);
+};
+
+// -------------------------------------------------------------
+// 一键录音音频导出并自动触发下载 (以曲谱标题命名)
+// -------------------------------------------------------------
+export const downloadScoreAudio = async (score: Score): Promise<string> => {
+  const wavBlob = await exportScoreToAudio(score);
+  const cleanTitle = (score.title || '').trim().replace(/[\\/:*?"<>|]/g, '_') || '乐谱录音';
+  const fileName = `${cleanTitle}.wav`;
+
+  const url = URL.createObjectURL(wavBlob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return fileName;
 };
 

@@ -2,13 +2,16 @@ import { useState, useRef, useEffect } from 'react';
 import './Toolbar.css';
 import { useEditor } from '../context/EditorContext';
 import { useScore } from '../context/ScoreContext';
-import { playNote, playChord } from '../utils/audio';
+import { useToast } from '../context/ToastContext';
+import { playNote, playChord, downloadScoreAudio } from '../utils/audio';
 import { getDiatonicChordsForKey, CHORD_PROGRESSION_TEMPLATES, resolveProgressionToChordNames } from '../utils/chord';
 import type { Measure, Note } from '../types';
 
 export const Toolbar = () => {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isExportingAudio, setIsExportingAudio] = useState(false);
   const playRef = useRef(false);
+  const { showToast } = useToast();
 
   const {
     currentDuration,
@@ -549,20 +552,47 @@ export const Toolbar = () => {
     }
   ];
 
+  const handleExportAudio = async () => {
+    if (isExportingAudio) return;
+    try {
+      setIsExportingAudio(true);
+      showToast(`正在离线渲染《${score.title || '乐谱'}》高保真音频...`, 'info');
+      const fileName = await downloadScoreAudio(score);
+      showToast(`已成功导出录音音频文件：${fileName}`, 'success');
+    } catch (err: any) {
+      showToast(`音频导出失败: ${err.message || '未知错误'}`, 'error');
+    } finally {
+      setIsExportingAudio(false);
+    }
+  };
+
   return (
     <div className="toolbar-container">
-      <div className="toolbar-tabs">
-        <button className={`tab-btn ${activeTab === 'notes' ? 'active' : ''}`} onClick={() => setActiveTab('notes')}>🎵 音符时值</button>
-        <button className={`tab-btn ${activeTab === 'measures' ? 'active' : ''}`} onClick={() => setActiveTab('measures')}>🎼 小节结构</button>
-        <button className={`tab-btn ${activeTab === 'text' ? 'active' : ''}`} onClick={() => setActiveTab('text')}>✍️ 歌词与标注</button>
-        <button className={`tab-btn ${activeTab === 'chords' ? 'active' : ''}`} onClick={() => setActiveTab('chords')}>🎸 和弦伴奏</button>
-        <button 
-          className={`play-btn ${isPlaying ? 'playing' : ''}`} 
-          onClick={isPlaying ? stopScore : playScore}
-          title={isPlaying ? '停止播放当前曲谱' : '播放当前曲谱'}
-        >
-          {isPlaying ? '⏹ 停止' : '▶ 试听'}
-        </button>
+      <div className="toolbar-tabs-wrapper">
+        <div className="toolbar-tabs">
+          <button className={`tab-btn ${activeTab === 'notes' ? 'active' : ''}`} onClick={() => setActiveTab('notes')}>🎵 音符时值</button>
+          <button className={`tab-btn ${activeTab === 'measures' ? 'active' : ''}`} onClick={() => setActiveTab('measures')}>🎼 小节结构</button>
+          <button className={`tab-btn ${activeTab === 'text' ? 'active' : ''}`} onClick={() => setActiveTab('text')}>✍️ 歌词与标注</button>
+          <button className={`tab-btn ${activeTab === 'chords' ? 'active' : ''}`} onClick={() => setActiveTab('chords')}>🎸 和弦伴奏</button>
+        </div>
+
+        <div className="toolbar-playback-group">
+          <button 
+            className={`play-btn ${isPlaying ? 'playing' : ''}`} 
+            onClick={isPlaying ? stopScore : playScore}
+            title={isPlaying ? '停止播放当前曲谱' : '播放当前曲谱'}
+          >
+            {isPlaying ? '⏹ 停止' : '▶ 试听'}
+          </button>
+          <button
+            className="export-audio-btn"
+            onClick={handleExportAudio}
+            disabled={isExportingAudio}
+            title="将整首曲谱伴奏录音导出为音频文件并下载 (以曲谱标题命名)"
+          >
+            {isExportingAudio ? '⏳ 正在导出...' : '🎙️ 录音下载'}
+          </button>
+        </div>
       </div>
 
       <div className="toolbar-content">
