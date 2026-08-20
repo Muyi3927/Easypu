@@ -110,18 +110,34 @@ export const Toolbar = () => {
       }
     }
 
-    // 2. 预先分析同音连音线 (Tie)：
-    // 在同音连音线跨度内（从 slurStart 到 slurEnd，或 tieStart 到 tieEnd），
-    // 若连续后一个音符的音高、八度、升降号与前一音符完全一致，则视为延音连奏：
-    // 只在首个音符发音（时值合并延长），后续同音符不重复二次敲击发声。
+    // 2. 预先分析延音线 (Extension Dash `-` / pitch === -1) 与同音连音线 (Tie)：
     const isTiedWithPrev = new Array(allNotes.length).fill(false);
     const totalTiedDuration = new Array(allNotes.length).fill(0);
+
+    // 辅助计算单个音符的实际节拍数 (精确计算附点 1.5x)
+    const getNoteBeats = (n: Note): number => {
+      const dur = n.duration || 1.0;
+      if (n.isDotted) {
+        // 如果已经乘过 1.5 (如 1.5, 0.75, 0.375, 0.1875) 则直接返回，否则乘 1.5
+        if (dur === 1.0 || dur === 0.5 || dur === 0.25 || dur === 0.125 || dur === 0.0625) {
+          return dur * 1.5;
+        }
+      }
+      return dur;
+    };
 
     let inSlur = false;
     let slurHeadIndex = -1;
 
     for (let i = 0; i < allNotes.length; i++) {
       const note = allNotes[i];
+
+      // A: 简谱增时线/延音线 `-` (pitch === -1) 自动作为上一正音符的延音持续
+      if (note.pitch === -1 && i > 0) {
+        isTiedWithPrev[i] = true;
+      }
+
+      // B: 同音连音线 (Tie)
       if (note.slurStart || note.tieStart) {
         inSlur = true;
         slurHeadIndex = i;
@@ -137,8 +153,7 @@ export const Toolbar = () => {
 
         if (isSamePitch) {
           isTiedWithPrev[i] = true;
-        } else {
-          // 音高不同则为异音连音线 (Slur)，更新当前的 slurHead
+        } else if (note.pitch > 0) {
           slurHeadIndex = i;
         }
       }
@@ -149,16 +164,16 @@ export const Toolbar = () => {
       }
     }
 
-    // 计算每个首发音符的总延音持续时值
+    // 计算每个首发音符的总延音持续时值 (Beats)
     for (let i = 0; i < allNotes.length; i++) {
-      if (!isTiedWithPrev[i]) {
-        let totalDur = allNotes[i].duration;
+      if (!isTiedWithPrev[i] && allNotes[i].pitch > 0) {
+        let totalBeats = getNoteBeats(allNotes[i]);
         let j = i + 1;
         while (j < allNotes.length && isTiedWithPrev[j]) {
-          totalDur += allNotes[j].duration;
+          totalBeats += getNoteBeats(allNotes[j]);
           j++;
         }
-        totalTiedDuration[i] = totalDur;
+        totalTiedDuration[i] = totalBeats;
       }
     }
 
@@ -201,19 +216,22 @@ export const Toolbar = () => {
       }
 
       setPlayingNoteId(note.id);
+      const noteBeats = getNoteBeats(note);
 
+      // 主旋律发声 (只有首发音符触发琴音，延音线与被连音符不重复敲击)
       if (note.pitch > 0 && !isTiedWithPrev[currentIndex]) {
-        const playDur = totalTiedDuration[currentIndex] || note.duration;
-        playNote(note.pitch, note.octave, note.accidental, score.keySignature, playDur, tempo);
+        const playDurBeats = totalTiedDuration[currentIndex] || noteBeats;
+        playNote(note.pitch, note.octave, note.accidental, score.keySignature, playDurBeats, tempo);
       }
 
       // 和弦伴奏多复音同步发声 (Polyphonic Accompaniment in sync!)
       if (note.chord && score.playAccompaniment !== false) {
-        const chordPlayDur = Math.max(0.6, note.duration * beatDurationSecs * 1.5);
+        const chordPlayDur = Math.max(0.6, noteBeats * beatDurationSecs * 1.5);
         playChord(note.chord, chordPlayDur);
       }
 
-      await interruptibleSleep(note.duration * beatDurationSecs * 1000);
+      // 精确按音符实际节拍时值等待
+      await interruptibleSleep(noteBeats * beatDurationSecs * 1000);
 
       // 如果在等待期间被外部跳转打断，不要递增 currentIndex，而是直接进入下一轮循环处理跳转目标
       if (!seekTargetNoteIdRef.current) {

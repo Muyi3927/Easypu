@@ -281,7 +281,7 @@ export const playChord = (
   });
 };
 
-// Salamander Grand Piano 采样播放核心函数 (零断裂、零底噪、丝滑阻尼释放)
+// Salamander Grand Piano 采样播放核心函数 (精准时值控制、真实琴弦共鸣、平滑阻尼释放)
 const playSalamanderSample = (
   ctx: AudioContext,
   buffer: AudioBuffer,
@@ -297,18 +297,20 @@ const playSalamanderSample = (
 
   const gain = ctx.createGain();
   const now = ctx.currentTime;
-  const targetPeak = 0.9 * volumeScale;
+  const targetPeak = 0.92 * volumeScale;
 
-  // 1. 击弦启动 (5ms 极速无破音软起动)
+  // 1. 击弦启动 (3ms 清脆击弦软起动)
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.linearRampToValueAtTime(targetPeak, now + 0.005);
+  gain.gain.linearRampToValueAtTime(targetPeak, now + 0.003);
 
-  // 2. 持续发声与琴体自然衰减 (Sustain Decay)
-  gain.gain.setTargetAtTime(0.4 * volumeScale, now + 0.04, 0.8);
+  // 2. 真实大钢琴保持 (Sustain)：在实际持续时值 durationSecs 内保持饱满真钢泛音
+  const decayTimeConstant = Math.max(1.8, durationSecs * 1.5);
+  gain.gain.setTargetAtTime(targetPeak * 0.65, now + 0.03, decayTimeConstant);
 
-  // 3. 离键阻尼释放 (Smooth Damper Release，连续指数衰减，彻底杜绝任何点击滋滋杂音)
+  // 3. 离键消音阻尼 (Damper Release)：音符到达设定时值时刻 (now + durationSecs) 干净离键
   const releaseStart = now + durationSecs;
-  gain.gain.setTargetAtTime(0.00001, releaseStart, 0.1);
+  const releaseTimeConstant = Math.min(0.1, Math.max(0.05, durationSecs * 0.08));
+  gain.gain.setTargetAtTime(0.00001, releaseStart, releaseTimeConstant);
 
   source.connect(gain);
   if (masterCompressor) {
@@ -318,8 +320,8 @@ const playSalamanderSample = (
   }
 
   source.start(now);
-  // 保证音量衰减完全归零后才切断音源
-  source.stop(releaseStart + 0.6);
+  // 衰减彻底归零后安全停止源
+  source.stop(releaseStart + 0.5);
 };
 
 // 物理声学建模钢琴合成 (后备引擎)
