@@ -162,9 +162,11 @@ export const Toolbar = () => {
   );
 
   const durations = [
-    { label: '1/4', value: 1, icon: <DurationIcon lines={0} />, title: '四分音符 (1/4 拍)' },
-    { label: '1/8 (8)', value: 0.5, icon: <DurationIcon lines={1} />, title: '八分音符 (1/8 拍，键盘快捷键: 8)' },
-    { label: '1/16 (9)', value: 0.25, icon: <DurationIcon lines={2} />, title: '十六分音符 (1/16 拍，键盘快捷键: 9)' },
+    { label: '1/4', value: 1, icon: <DurationIcon lines={0} />, title: '四分音符 (1/4 拍，快捷键: \\)' },
+    { label: '1/8 (8)', value: 0.5, icon: <DurationIcon lines={1} />, title: '八分音符 (1/8 拍，快捷键: 8)' },
+    { label: '1/16 (9)', value: 0.25, icon: <DurationIcon lines={2} />, title: '十六分音符 (1/16 拍，快捷键: 9)' },
+    { label: '1/32', value: 0.125, icon: <DurationIcon lines={3} />, title: '三十二分音符 (1/32 拍)' },
+    { label: '1/64', value: 0.0625, icon: <DurationIcon lines={4} />, title: '六十四分音符 (1/64 拍)' },
   ];
 
   const measureTools = [

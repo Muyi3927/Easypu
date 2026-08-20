@@ -1971,7 +1971,7 @@ const NoteBlock = ({
           </div>
         )}
 
-        {/* 减时线下划线：1/8 音符 1 条线，1/16 音符 2 条线，1/32 音符 3 条线 */}
+        {/* 减时线下划线：1/8 音符 1 条线，1/16 音符 2 条线，1/32 音符 3 条线，1/64 音符 4 条线 */}
         {!isPlaceholder && !isExtension && note.duration <= 0.75 && (
           <div className="duration-lines">
             <div className="duration-line" style={{ backgroundColor: noteFont.color || '#101010' }}></div>
@@ -1979,6 +1979,9 @@ const NoteBlock = ({
               <div className="duration-line" style={{ backgroundColor: noteFont.color || '#101010' }}></div>
             )}
             {note.duration <= 0.1875 && (
+              <div className="duration-line" style={{ backgroundColor: noteFont.color || '#101010' }}></div>
+            )}
+            {note.duration <= 0.09375 && (
               <div className="duration-line" style={{ backgroundColor: noteFont.color || '#101010' }}></div>
             )}
           </div>

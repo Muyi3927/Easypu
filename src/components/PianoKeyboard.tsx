@@ -48,36 +48,9 @@ export const PianoKeyboard = () => {
         <div className="piano-quick-actions">
           <button
             type="button"
-            className="piano-quick-btn rest-btn"
-            onClick={() => handleKeyClick(0, 0)}
-            title="输入休止符 0 (键盘直接按 0)"
-          >
-            <span className="btn-glyph">0</span>
-            <span className="btn-text">休止符</span>
-            <kbd className="btn-kbd">0</kbd>
-          </button>
-
-          <button
-            type="button"
-            className="piano-quick-btn extend-btn"
-            onClick={() => {
-              const finalDuration = currentDuration;
-              updateActiveNote({ pitch: -1, octave: 0, accidental: null, isDotted: false, duration: finalDuration });
-            }}
-            title="输入延音线 / 增时线 — (键盘直接按 -)"
-          >
-            <span className="btn-glyph">－</span>
-            <span className="btn-text">延音线</span>
-            <kbd className="btn-kbd">-</kbd>
-          </button>
-
-          <div className="piano-btn-divider"></div>
-
-          <button
-            type="button"
             className={`piano-quick-btn duration-btn ${currentDuration === 1 ? 'active' : ''}`}
             onClick={() => setCurrentDuration(1)}
-            title="切换为 1/4 四分音符 (键盘直接按 \ 或 8切换)"
+            title="切换为 1/4 四分音符 (快捷键: \\ 或 8切换)"
           >
             <span className="btn-glyph">1/4</span>
             <kbd className="btn-kbd">\</kbd>
@@ -87,7 +60,7 @@ export const PianoKeyboard = () => {
             type="button"
             className={`piano-quick-btn duration-btn ${currentDuration === 0.5 ? 'active' : ''}`}
             onClick={() => setCurrentDuration(0.5)}
-            title="切换为 1/8 八分音符 (键盘直接按 8)"
+            title="切换为 1/8 八分音符 (快捷键: 8)"
           >
             <span className="btn-glyph">1/8</span>
             <kbd className="btn-kbd">8</kbd>
@@ -95,9 +68,37 @@ export const PianoKeyboard = () => {
 
           <button
             type="button"
+            className={`piano-quick-btn duration-btn ${currentDuration === 0.25 ? 'active' : ''}`}
+            onClick={() => setCurrentDuration(0.25)}
+            title="切换为 1/16 十六分音符 (快捷键: 9)"
+          >
+            <span className="btn-glyph">1/16</span>
+            <kbd className="btn-kbd">9</kbd>
+          </button>
+
+          <button
+            type="button"
+            className={`piano-quick-btn duration-btn ${currentDuration === 0.125 ? 'active' : ''}`}
+            onClick={() => setCurrentDuration(0.125)}
+            title="切换为 1/32 三十二分音符"
+          >
+            <span className="btn-glyph">1/32</span>
+          </button>
+
+          <button
+            type="button"
+            className={`piano-quick-btn duration-btn ${currentDuration === 0.0625 ? 'active' : ''}`}
+            onClick={() => setCurrentDuration(0.0625)}
+            title="切换为 1/64 六十四分音符"
+          >
+            <span className="btn-glyph">1/64</span>
+          </button>
+
+          <button
+            type="button"
             className={`piano-quick-btn dot-btn ${isDotted ? 'active' : ''}`}
             onClick={() => setIsDotted(!isDotted)}
-            title="附点开关 (键盘直接按 .)"
+            title="附点开关 (快捷键: .)"
           >
             <span className="btn-glyph">·</span>
             <span className="btn-text">附点</span>
@@ -106,13 +107,15 @@ export const PianoKeyboard = () => {
         </div>
 
         <div className="piano-shortcut-hints">
-          <span className="hint-pill">🎹 键盘输入：</span>
+          <span className="hint-pill">🎹 快捷键：</span>
           <span className="hint-item"><kbd>0</kbd> 休止</span>
           <span className="hint-item"><kbd>-</kbd> 延音</span>
           <span className="hint-item"><kbd>1~7</kbd> 音符</span>
-          <span className="hint-item"><kbd>8</kbd> 切1/8与1/4</span>
-          <span className="hint-item"><kbd>⌫</kbd> 退格删除</span>
-          <span className="hint-item"><kbd>↑</kbd><kbd>↓</kbd> 升降八度</span>
+          <span className="hint-item"><kbd>8</kbd> 1/8</span>
+          <span className="hint-item"><kbd>9</kbd> 1/16</span>
+          <span className="hint-item"><kbd>[</kbd><kbd>]</kbd> ♭/#</span>
+          <span className="hint-item"><kbd>↑</kbd><kbd>↓</kbd> 高低音</span>
+          <span className="hint-item"><kbd>⌫</kbd> 删除</span>
         </div>
       </div>
 
