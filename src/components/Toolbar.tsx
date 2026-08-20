@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import './Toolbar.css';
 import { useEditor } from '../context/EditorContext';
 import { useScore } from '../context/ScoreContext';
@@ -48,8 +48,24 @@ export const Toolbar = () => {
     setScore
   } = useScore();
 
+  const seekTargetNoteIdRef = useRef<string | null>(null);
+  const interruptSleepRef = useRef<(() => void) | null>(null);
+
+  // 监听播放中的音符点击跳转 (Seek)
+  useEffect(() => {
+    if (isPlaying && activeNoteId) {
+      seekTargetNoteIdRef.current = activeNoteId;
+      if (interruptSleepRef.current) {
+        interruptSleepRef.current();
+      }
+    }
+  }, [activeNoteId, isPlaying]);
+
   const stopScore = () => {
     playRef.current = false;
+    if (interruptSleepRef.current) {
+      interruptSleepRef.current();
+    }
     setIsPlaying(false);
     setPlayingNoteId(null);
   };
@@ -66,6 +82,29 @@ export const Toolbar = () => {
         allNotes.push(n);
       });
     });
+
+    if (allNotes.length === 0) {
+      setIsPlaying(false);
+      playRef.current = false;
+      return;
+    }
+
+    // 确定播放起始位置：如果当前选中了具体音符，则从该音符开始播放；否则默认从头开始
+    let startIndex = 0;
+    if (activeNoteId) {
+      const activeIdx = allNotes.findIndex(n => n.id === activeNoteId);
+      if (activeIdx !== -1) {
+        // 检查选定位置及其后续是否含有可播放音符
+        let hasPlayableAfter = false;
+        for (let k = activeIdx; k < allNotes.length; k++) {
+          if (allNotes[k].pitch !== -2) {
+            hasPlayableAfter = true;
+            break;
+          }
+        }
+        startIndex = hasPlayableAfter ? activeIdx : 0;
+      }
+    }
 
     // 2. 预先分析同音连音线 (Tie)：
     // 在同音连音线跨度内（从 slurStart 到 slurEnd，或 tieStart 到 tieEnd），
@@ -123,17 +162,53 @@ export const Toolbar = () => {
     const tempo = score.tempo || 120;
     const beatDurationSecs = 60 / tempo;
 
-    for (let i = 0; i < allNotes.length; i++) {
-      if (!playRef.current) break;
-      const note = allNotes[i];
+    const interruptibleSleep = (ms: number) => {
+      return new Promise<void>(resolve => {
+        let timer: any = null;
+        const cleanup = () => {
+          if (timer) clearTimeout(timer);
+          interruptSleepRef.current = null;
+          resolve();
+        };
+        interruptSleepRef.current = cleanup;
+        timer = setTimeout(cleanup, ms);
+      });
+    };
+
+    let currentIndex = startIndex;
+    while (currentIndex < allNotes.length && playRef.current) {
+      // 检查是否有外部点击音符发起的即时跳转请求 (Seek)
+      if (seekTargetNoteIdRef.current) {
+        const targetIdx = allNotes.findIndex(n => n.id === seekTargetNoteIdRef.current);
+        seekTargetNoteIdRef.current = null;
+        if (targetIdx !== -1) {
+          currentIndex = targetIdx;
+        }
+      }
+
+      if (currentIndex >= allNotes.length || !playRef.current) break;
+
+      const note = allNotes[currentIndex];
+
+      // 没有输入音符的空白占位符（pitch === -2）直接跳过，不暂停、不发声
+      if (note.pitch === -2) {
+        currentIndex++;
+        continue;
+      }
+
       setPlayingNoteId(note.id);
 
-      if (note.pitch > 0 && !isTiedWithPrev[i]) {
-        const playDur = totalTiedDuration[i] || note.duration;
+      if (note.pitch > 0 && !isTiedWithPrev[currentIndex]) {
+        const playDur = totalTiedDuration[currentIndex] || note.duration;
         playNote(note.pitch, note.octave, note.accidental, score.keySignature, playDur, tempo);
       }
 
-      await new Promise(r => setTimeout(r, note.duration * beatDurationSecs * 1000));
+      await interruptibleSleep(note.duration * beatDurationSecs * 1000);
+
+      // 如果在等待期间被外部跳转打断，不要递增 currentIndex，而是直接进入下一轮循环处理跳转目标
+      if (!seekTargetNoteIdRef.current) {
+        currentIndex++;
+      }
     }
 
     setIsPlaying(false);

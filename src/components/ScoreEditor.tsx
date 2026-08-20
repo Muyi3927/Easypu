@@ -1601,14 +1601,15 @@ export const ScoreEditor = () => {
                                         isBeatEnd={isBeatEnd}
                                         isPreviewMode={isPreviewMode}
                                         onClick={() => {
-                                          if (isPreviewMode) return;
                                           selectNote(measure.id, note.id);
-                                          if (activeTab !== 'text') {
-                                            setActiveTab('notes');
-                                          }
-                                          if (isMultiSelectMode) {
-                                            setIsMultiSelectMode(false);
-                                            setSelectedMeasureIds([]);
+                                          if (!isPreviewMode) {
+                                            if (activeTab !== 'text') {
+                                              setActiveTab('notes');
+                                            }
+                                            if (isMultiSelectMode) {
+                                              setIsMultiSelectMode(false);
+                                              setSelectedMeasureIds([]);
+                                            }
                                           }
                                         }}
                                       />
