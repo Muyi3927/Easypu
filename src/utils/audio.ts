@@ -502,9 +502,10 @@ export const exportScoreToAudio = async (
     return dur;
   };
 
-  // 分析连音线与延音线
+  // 分析连音线(Tie)与圆滑连奏线(Slur / Legato)
   const analyzeTrackTies = (notesList: Note[]) => {
     const isTied = new Array(notesList.length).fill(false);
+    const isLegato = new Array(notesList.length).fill(false);
     const tiedDur = new Array(notesList.length).fill(0);
     let inSlur = false;
     let slurHeadIndex = -1;
@@ -513,8 +514,12 @@ export const exportScoreToAudio = async (
       const note = notesList[i];
       if (note.pitch === -1 && i > 0) isTied[i] = true;
       if (note.slurStart || note.tieStart) { inSlur = true; slurHeadIndex = i; }
+      if (inSlur && note.pitch > 0) {
+        isLegato[i] = true;
+      }
       if (inSlur && i > 0 && slurHeadIndex !== -1 && i > slurHeadIndex) {
         const prevNote = notesList[i - 1];
+        // 相同音高 -> 延音线 (Tie): 后面音符不发声，时值累加
         if (
           note.pitch > 0 &&
           note.pitch === prevNote.pitch &&
@@ -523,6 +528,7 @@ export const exportScoreToAudio = async (
         ) {
           isTied[i] = true;
         } else if (note.pitch > 0) {
+          // 不同音高 -> 圆滑连奏 (Slur / Legato): 每个音符发声并平滑衔接
           slurHeadIndex = i;
         }
       }
@@ -540,7 +546,7 @@ export const exportScoreToAudio = async (
         tiedDur[i] = totalBeats;
       }
     }
-    return { isTied, tiedDur };
+    return { isTied, tiedDur, isLegato };
   };
 
   const allVoice1Notes: Note[] = [];
@@ -643,9 +649,10 @@ export const exportScoreToAudio = async (
         }
       }
 
-      // 1. 声部 1 (主旋律 100% 音量 + 柱式叠置和音)
+      // 1. 声部 1 (主旋律 100% 音量 + 柱式叠置和音，圆滑线 Slur 连奏无缝衔接)
       if (v1HasSound && v1Ev && v1Ev.note.pitch > 0 && !v1Analysis.isTied[v1Ev.globalIdx]) {
-        const playDurBeats = v1Analysis.tiedDur[v1Ev.globalIdx] || v1Ev.beats;
+        const isLegato1 = v1Analysis.isLegato[v1Ev.globalIdx];
+        const playDurBeats = (v1Analysis.tiedDur[v1Ev.globalIdx] || v1Ev.beats) * (isLegato1 ? 1.06 : 0.94);
         const noteDurationSecs = Math.max(0.15, playDurBeats * beatDurationSecs);
         const { midi } = calculateMidiNote(v1Ev.note.pitch, v1Ev.note.octave, v1Ev.note.accidental, v1Key);
         scheduledEvents.push({
@@ -691,7 +698,8 @@ export const exportScoreToAudio = async (
 
       // 2. 声部 2 (副旋律/低音伴奏 60% 音量 + 柱式叠置和音)
       if (v2HasSound && v2Ev && v2Ev.note.pitch > 0 && !v2Analysis.isTied[v2Ev.globalIdx]) {
-        const playDurBeats2 = v2Analysis.tiedDur[v2Ev.globalIdx] || v2Ev.beats;
+        const isLegato2 = v2Analysis.isLegato[v2Ev.globalIdx];
+        const playDurBeats2 = (v2Analysis.tiedDur[v2Ev.globalIdx] || v2Ev.beats) * (isLegato2 ? 1.06 : 0.94);
         const noteDurationSecs2 = Math.max(0.15, playDurBeats2 * beatDurationSecs);
         const { midi } = calculateMidiNote(v2Ev.note.pitch, v2Ev.note.octave, v2Ev.note.accidental, v2Key);
         scheduledEvents.push({
