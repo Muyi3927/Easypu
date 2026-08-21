@@ -147,25 +147,40 @@ export const generateChordPatternEvents = (
       });
     });
   } else if (pattern === 'rhythmic') {
-    // 2. 动感节奏柱式：第1拍(Bass+和弦)、第2拍(和弦)、第3拍(Bass+和弦)、第4拍(和弦)
+    // 2. 动感节奏柱式：前几拍打满律动，最后一拍精准弹半拍(0.45拍)，为后半拍过门预留绝对干净的空间
     for (let b = 0; b < beats; b++) {
       const isStrong = b % 2 === 0;
-      if (isStrong) {
-        events.push({
-          offsetBeats: b,
-          midi: rootMidi,
-          durationBeats: 0.9,
-          volumeScale: 1.05
+      const isLastBeat = b === beats - 1 && beats >= 2;
+
+      // 最后一拍不触发沉重低音，仅触发半拍(0.45拍)轻快中音柱式，防止掩盖左手过门
+      if (isLastBeat) {
+        chordNotes.forEach(m => {
+          events.push({
+            offsetBeats: b,
+            midi: m,
+            durationBeats: 0.45, // 精确半拍，后半拍绝对静音留白给左手过门
+            volumeScale: 0.72
+          });
+        });
+      } else {
+        // 常规拍 (第 1, 2, 3 拍)
+        if (isStrong) {
+          events.push({
+            offsetBeats: b,
+            midi: rootMidi,
+            durationBeats: 0.85,
+            volumeScale: 1.05
+          });
+        }
+        chordNotes.forEach(m => {
+          events.push({
+            offsetBeats: b,
+            midi: m,
+            durationBeats: 0.75,
+            volumeScale: isStrong ? 0.85 : 0.75
+          });
         });
       }
-      chordNotes.forEach(m => {
-        events.push({
-          offsetBeats: b,
-          midi: m,
-          durationBeats: 0.85,
-          volumeScale: isStrong ? 0.85 : 0.75
-        });
-      });
     }
   } else if (pattern === 'arpeggio') {
     // 3. 优雅分解和弦琶音：1(Bass) -> 5(五音) -> 3(三音) -> 5(五音)
