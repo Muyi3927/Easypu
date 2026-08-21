@@ -146,40 +146,29 @@ export const generateChordPatternEvents = (
       });
     });
   } else if (pattern === 'rhythmic') {
-    // 2. 动感节奏柱式：前几拍打满律动，最后一拍精准弹半拍(0.45拍)，为后半拍过门预留绝对干净的空间
-    for (let b = 0; b < beats; b++) {
-      const isStrong = b % 2 === 0;
-      const isLastBeat = b === beats - 1 && beats >= 2;
+    // 2. 节奏柱式 (经典四分打点伴奏)：
+    // 左手：第 1 拍按下低音(Bass)，持续 4 拍长音沉底不松手；
+    // 右手：每一拍敲击一次完全一致的中音区柱式和弦，最后一拍弹半拍以便过门
+    events.push({
+      offsetBeats: 0,
+      midi: rootMidi,
+      durationBeats: totalSpanBeats, // 左手低音持续响满整小节 4 拍
+      volumeScale: 1.05
+    });
 
-      // 最后一拍不触发沉重低音，仅触发半拍(0.45拍)轻快中音柱式，防止掩盖左手过门
-      if (isLastBeat) {
-        chordNotes.forEach(m => {
-          events.push({
-            offsetBeats: b,
-            midi: m,
-            durationBeats: 0.45, // 精确半拍，后半拍绝对静音留白给左手过门
-            volumeScale: 0.72
-          });
+    for (let b = 0; b < beats; b++) {
+      const isLastBeat = b === beats - 1 && beats >= 2;
+      const dur = isLastBeat ? 0.45 : 0.75;
+      const vol = isLastBeat ? 0.75 : 0.82;
+
+      chordNotes.forEach(m => {
+        events.push({
+          offsetBeats: b,
+          midi: m,
+          durationBeats: dur,
+          volumeScale: vol
         });
-      } else {
-        // 常规拍 (第 1, 2, 3 拍)
-        if (isStrong) {
-          events.push({
-            offsetBeats: b,
-            midi: rootMidi,
-            durationBeats: 0.85,
-            volumeScale: 1.05
-          });
-        }
-        chordNotes.forEach(m => {
-          events.push({
-            offsetBeats: b,
-            midi: m,
-            durationBeats: 0.75,
-            volumeScale: isStrong ? 0.85 : 0.75
-          });
-        });
-      }
+      });
     }
   } else if (pattern === 'arpeggio') {
     // 3. 优雅分解和弦琶音：1(Bass) -> 5(五音) -> 3(三音) -> 5(五音)
