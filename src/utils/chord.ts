@@ -107,6 +107,108 @@ export const parseChordToMidiNotes = (chordName: string): number[] => {
   return [bassMidi, ...chordMidis];
 };
 
+export interface ChordPatternEvent {
+  offsetBeats: number; // 相对和弦起始的拍数偏移
+  midi: number;
+  durationBeats: number;
+  volumeScale: number;
+}
+
+// 伴奏织体节奏型生成器 (支持：全音柱式、动感节奏柱式、优雅分解琶音、华尔兹三拍)
+export const generateChordPatternEvents = (
+  chordName: string,
+  totalSpanBeats: number,
+  pattern: 'block' | 'rhythmic' | 'arpeggio' | 'waltz' = 'block',
+  _timeSignature: string = '4/4'
+): ChordPatternEvent[] => {
+  const midis = parseChordToMidiNotes(chordName);
+  if (midis.length === 0) return [];
+
+  const rootMidi = midis[0]; // 低音 Bass (C3组)
+  const chordNotes = midis.slice(1); // 和弦音 Triad (C4组)
+  const events: ChordPatternEvent[] = [];
+
+  const beats = Math.max(1, Math.round(totalSpanBeats));
+
+  if (pattern === 'block') {
+    // 1. 全音柱式铺底：Bass + Triad 齐奏，持续整个和弦跨度
+    events.push({
+      offsetBeats: 0,
+      midi: rootMidi,
+      durationBeats: totalSpanBeats,
+      volumeScale: 1.05
+    });
+    chordNotes.forEach(m => {
+      events.push({
+        offsetBeats: 0,
+        midi: m,
+        durationBeats: totalSpanBeats,
+        volumeScale: 0.85
+      });
+    });
+  } else if (pattern === 'rhythmic') {
+    // 2. 动感节奏柱式：第1拍(Bass+和弦)、第2拍(和弦)、第3拍(Bass+和弦)、第4拍(和弦)
+    for (let b = 0; b < beats; b++) {
+      const isStrong = b % 2 === 0;
+      if (isStrong) {
+        events.push({
+          offsetBeats: b,
+          midi: rootMidi,
+          durationBeats: 0.9,
+          volumeScale: 1.05
+        });
+      }
+      chordNotes.forEach(m => {
+        events.push({
+          offsetBeats: b,
+          midi: m,
+          durationBeats: 0.85,
+          volumeScale: isStrong ? 0.85 : 0.75
+        });
+      });
+    }
+  } else if (pattern === 'arpeggio') {
+    // 3. 优雅分解和弦琶音：1(Bass) -> 5(五音) -> 3(三音) -> 5(五音)
+    const thirdMidi = chordNotes[0] || (rootMidi + 16);
+    const fifthMidi = chordNotes[1] || (rootMidi + 19);
+    const arpSequence = [rootMidi, fifthMidi, thirdMidi, fifthMidi];
+
+    for (let b = 0; b < beats; b++) {
+      const midi = arpSequence[b % arpSequence.length];
+      events.push({
+        offsetBeats: b,
+        midi,
+        durationBeats: 1.2,
+        volumeScale: b === 0 ? 1.05 : 0.85
+      });
+    }
+  } else if (pattern === 'waltz') {
+    // 4. 华尔兹舞曲：第1拍(Bass重音“咚”)，第2拍(柱式“哒”)，第3拍(柱式“哒”)
+    for (let b = 0; b < beats; b++) {
+      const step = b % 3;
+      if (step === 0) {
+        events.push({
+          offsetBeats: b,
+          midi: rootMidi,
+          durationBeats: 1.0,
+          volumeScale: 1.15
+        });
+      } else {
+        chordNotes.forEach(m => {
+          events.push({
+            offsetBeats: b,
+            midi: m,
+            durationBeats: 0.8,
+            volumeScale: 0.8
+          });
+        });
+      }
+    }
+  }
+
+  return events;
+};
+
 // 根据当前曲谱调号自动计算该大调对应的 1~7 级自然和弦
 export const getDiatonicChordsForKey = (keySig: string = '1=C'): ChordDefinition[] => {
   const tonicOffset = getKeyOffset(keySig);

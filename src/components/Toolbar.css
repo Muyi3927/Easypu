@@ -505,3 +505,15 @@
   background: #fdf4ff !important;
   border-color: #d8b4fe !important;
 }
+
+.pattern-btn.active {
+  background: #f0fdf4 !important;
+  border-color: #10b981 !important;
+  color: #047857 !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
+}
+
+.pattern-btn.active .note-label {
+  color: #047857 !important;
+  font-weight: 600 !important;
+}

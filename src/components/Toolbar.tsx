@@ -3,8 +3,8 @@ import './Toolbar.css';
 import { useEditor } from '../context/EditorContext';
 import { useScore } from '../context/ScoreContext';
 import { useToast } from '../context/ToastContext';
-import { playNote, playChord, downloadScoreAudio } from '../utils/audio';
-import { getDiatonicChordsForKey, CHORD_PROGRESSION_TEMPLATES, resolveProgressionToChordNames } from '../utils/chord';
+import { playNote, playChord, playMidiNote, downloadScoreAudio } from '../utils/audio';
+import { getDiatonicChordsForKey, CHORD_PROGRESSION_TEMPLATES, resolveProgressionToChordNames, generateChordPatternEvents } from '../utils/chord';
 import type { Measure, Note } from '../types';
 
 export const Toolbar = () => {
@@ -29,12 +29,14 @@ export const Toolbar = () => {
 
   const {
     score,
+    setScore,
     activeMeasureId,
     activeNoteId,
     activeVoice,
     setActiveVoice,
     toggleSecondVoice,
     updateActiveNote,
+    setAccompanimentPattern,
     setMeasuresPerLine,
     toggleSlurStart,
     toggleSlurEnd,
@@ -54,8 +56,7 @@ export const Toolbar = () => {
     deleteLyricRow,
     updateNoteChord,
     applyProgressionToScore,
-    clearAllChords,
-    setScore
+    clearAllChords
   } = useScore();
 
   const seekTargetNoteIdRef = useRef<string | null>(null);
@@ -333,14 +334,21 @@ export const Toolbar = () => {
           }
         }
 
-        // 1. 声部 1 在当前时间点发音 (主旋律 100% 音量，使用声部 1 调号)
+        // 1. 声部 1 在当前时间点发音 (主旋律 100% 音量 + 柱式叠置和音)
         if (v1HasSound && v1Ev) {
           setPlayingNoteId(v1Ev.note.id);
           if (v1Ev.note.pitch > 0 && !v1Analysis.isTied[v1Ev.globalIdx]) {
             const playDur = v1Analysis.tiedDur[v1Ev.globalIdx] || v1Ev.beats;
             playNote(v1Ev.note.pitch, v1Ev.note.octave, v1Ev.note.accidental, v1Key, playDur, tempo, 1.0);
+
+            // 播放声部 1 柱式叠置和音
+            if (v1Ev.note.stackedPitches && v1Ev.note.stackedPitches.length > 0) {
+              v1Ev.note.stackedPitches.forEach(sp => {
+                playNote(sp.pitch, sp.octave, sp.accidental, v1Key, playDur, tempo, 0.95);
+              });
+            }
           }
-          // 和弦伴奏 (按拍号与下一个和弦起点精准计算持续时值，4/4拍默认为整小节4拍，遇新和弦自动衔接)
+          // 和弦伴奏 (支持 4 种伴奏织体类型：全音柱式/节奏柱式/分解琶音/华尔兹)
           if (v1Ev.note.chord && score.playAccompaniment !== false) {
             const [topStr, btmStr] = (score.timeSignature || '4/4').split('/');
             const beatsPerMeasure = (parseInt(topStr) || 4) * (4 / (parseInt(btmStr) || 4));
@@ -348,15 +356,37 @@ export const Toolbar = () => {
             const chordSpanBeats = nextChordEv
               ? (nextChordEv.start - currT)
               : Math.max(beatsPerMeasure - currT, measureDurationBeats - currT, 1.0);
-            const chordPlayDur = Math.max(0.3, chordSpanBeats * beatDurationSecs);
-            playChord(v1Ev.note.chord, chordPlayDur, 0.38);
+
+            const pattern = score.accompanimentPattern || 'block';
+            const chordEvents = generateChordPatternEvents(v1Ev.note.chord, chordSpanBeats, pattern, score.timeSignature || '4/4');
+
+            chordEvents.forEach(ce => {
+              const delayMs = ce.offsetBeats * beatDurationSecs * 1000;
+              const durSecs = Math.max(0.2, ce.durationBeats * beatDurationSecs);
+              if (delayMs <= 2) {
+                playMidiNote(ce.midi, durSecs, 0.38 * ce.volumeScale);
+              } else {
+                setTimeout(() => {
+                  if (playRef.current) {
+                    playMidiNote(ce.midi, durSecs, 0.38 * ce.volumeScale);
+                  }
+                }, delayMs);
+              }
+            });
           }
         }
 
-        // 2. 声部 2 (副声部/低音声部) 在当前时间点同步发音 (60% 音量柔化衬托，使用声部 2 独立调号)
+        // 2. 声部 2 (副声部/低音声部) 在当前时间点同步发音 (60% 音量柔化衬托 + 柱式叠置和音)
         if (v2HasSound && v2Ev && v2Ev.note.pitch > 0 && !v2Analysis.isTied[v2Ev.globalIdx]) {
           const playDur2 = v2Analysis.tiedDur[v2Ev.globalIdx] || v2Ev.beats;
           playNote(v2Ev.note.pitch, v2Ev.note.octave, v2Ev.note.accidental, v2Key, playDur2, tempo, 0.6);
+
+          // 播放声部 2 柱式叠置和音
+          if (v2Ev.note.stackedPitches && v2Ev.note.stackedPitches.length > 0) {
+            v2Ev.note.stackedPitches.forEach(sp => {
+              playNote(sp.pitch, sp.octave, sp.accidental, v2Key, playDur2, tempo, 0.58);
+            });
+          }
         }
 
         if (sliceBeats > 0.001) {
@@ -830,7 +860,30 @@ export const Toolbar = () => {
 
             <div className="tool-divider"></div>
 
-            {/* 3. 伴奏开关与和弦清理 */}
+            {/* 3. 伴奏织体类型选择 (全音柱式/节奏柱式/分解琶音/华尔兹) */}
+            <div className="tool-section accompaniment-pattern-section">
+              <span className="chord-group-label">伴奏织体:</span>
+              {[
+                { key: 'block', name: '全音柱式', desc: '整小节长音柱式齐奏铺底，庄重饱满', icon: '🎹' },
+                { key: 'rhythmic', name: '节奏柱式', desc: '动感强弱立柱节拍(咚-哒-咚-哒)', icon: '🥁' },
+                { key: 'arpeggio', name: '分解琶音', desc: '优雅流畅流水音(1-5-3-5)', icon: '🌊' },
+                { key: 'waltz', name: '华尔兹', desc: '经典三拍子圆舞曲(咚-哒-哒)', icon: '💃' },
+              ].map(p => (
+                <button
+                  key={p.key}
+                  className={`tool-btn pattern-btn ${(score.accompanimentPattern || 'block') === p.key ? 'active' : ''}`}
+                  onClick={() => setAccompanimentPattern(p.key as any)}
+                  title={`${p.name} - ${p.desc}`}
+                >
+                  <div className="note-icon">{p.icon}</div>
+                  <div className="note-label">{p.name}</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="tool-divider"></div>
+
+            {/* 4. 伴奏开关与和弦清理 */}
             <div className="tool-section chord-actions-section">
               <button
                 className={`tool-btn ${score.playAccompaniment !== false ? 'active' : ''}`}

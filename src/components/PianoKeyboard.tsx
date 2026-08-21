@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './PianoKeyboard.css';
 import { useEditor } from '../context/EditorContext';
 import { useScore } from '../context/ScoreContext';
@@ -11,7 +11,8 @@ const pitches = [1, 2, 3, 4, 5, 6, 7];
 
 export const PianoKeyboard = () => {
   const { currentDuration, setCurrentDuration, isDotted, setIsDotted } = useEditor();
-  const { updateActiveNote, score, activeVoice } = useScore();
+  const { updateActiveNote, addStackedPitchToActiveNote, score, activeVoice } = useScore();
+  const [isStackedMode, setIsStackedMode] = useState(false);
   const keyboardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,6 +36,11 @@ export const PianoKeyboard = () => {
 
     // Play the note
     playNote(pitch, octave, accidental, activeKeySig, finalDuration, score.tempo || 120);
+
+    if (isStackedMode) {
+      addStackedPitchToActiveNote(pitch, octave, accidental);
+      return;
+    }
 
     updateActiveNote({
       pitch: pitch,
@@ -108,6 +114,17 @@ export const PianoKeyboard = () => {
             <span className="btn-text">附点</span>
             <kbd className="btn-kbd">.</kbd>
           </button>
+
+          <button
+            type="button"
+            className={`piano-quick-btn stack-btn ${isStackedMode ? 'active' : ''}`}
+            onClick={() => setIsStackedMode(!isStackedMode)}
+            title="柱式/和音叠置输入开关 (开启后点击琴键在当前音符上垂直叠加和音，快捷键: Shift+1~7)"
+          >
+            <span className="btn-glyph">🎼</span>
+            <span className="btn-text">叠置和音</span>
+            <kbd className="btn-kbd">Shift</kbd>
+          </button>
         </div>
 
         <div className="piano-shortcut-hints">
@@ -115,6 +132,7 @@ export const PianoKeyboard = () => {
           <span className="hint-item"><kbd>0</kbd> 休止</span>
           <span className="hint-item"><kbd>-</kbd> 延音</span>
           <span className="hint-item"><kbd>1~7</kbd> 音符</span>
+          <span className="hint-item"><kbd>Shift+1~7</kbd> 叠音柱式</span>
           <span className="hint-item"><kbd>8</kbd> 1/8</span>
           <span className="hint-item"><kbd>9</kbd> 1/16</span>
           <span className="hint-item"><kbd>[</kbd><kbd>]</kbd> ♭/#</span>

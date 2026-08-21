@@ -1,10 +1,19 @@
+export interface StackedPitch {
+  pitch: number; // 1-7
+  octave: number; // -2 to 2
+  accidental: '#' | 'b' | 'n' | null;
+}
+
+export type AccompanimentPattern = 'block' | 'rhythmic' | 'arpeggio' | 'waltz';
+
 export interface Note {
   id: string;
-  pitch: number; // 1-7 for Do-Si, 0 for rest, -1 for placeholder
-  octave: number; // -1 for lower dot, 0 for normal, 1 for higher dot
+  pitch: number; // 1-7 for Do-Si, 0 for rest, -1 for extension, -2 for placeholder
+  octave: number; // -2 to 2
   duration: number; // 1 for quarter, 0.5 for eighth, 0.25 for sixteenth, etc.
   isDotted: boolean;
   accidental: '#' | 'b' | 'n' | null;
+  stackedPitches?: StackedPitch[]; // 纵向叠置复音/柱式和弦音（如 1+3+5 垂直柱式）
   lyric?: string;
   lyrics?: string[];
   chord?: string; // 和弦名称，如 'C', 'Am', 'G7'
@@ -60,6 +69,7 @@ export interface Score {
   octaveDotSize?: number; // 高低音点大小 (px)
   showChords?: boolean; // 是否显示和弦标记
   playAccompaniment?: boolean; // 播放时是否同步演奏和弦伴奏
+  accompanimentPattern?: AccompanimentPattern; // 伴奏织体类型 ('block' | 'rhythmic' | 'arpeggio' | 'waltz')
   hasSecondVoice?: boolean; // 是否开启双声部打谱 (第二声部)
   voice1Name?: string; // 第一声部名称 (如 高音部 / 右手)
   voice2Name?: string; // 第二声部名称 (如 低音部 / 左手)

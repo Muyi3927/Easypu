@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { Score, Measure, Note, FontSettings } from '../types';
+import type { Score, Measure, Note, FontSettings, AccompanimentPattern } from '../types';
 
 interface ScoreContextType {
   score: Score;
@@ -16,6 +16,9 @@ interface ScoreContextType {
   playingNoteId: string | null;
   setPlayingNoteId: React.Dispatch<React.SetStateAction<string | null>>;
   updateActiveNote: (note: Partial<Omit<Note, 'id'>>, advanceCursor?: boolean) => void;
+  addStackedPitchToActiveNote: (pitch: number, octave?: number, accidental?: '#' | 'b' | 'n' | null) => void;
+  removeStackedPitchFromActiveNote: () => void;
+  setAccompanimentPattern: (pattern: AccompanimentPattern) => void;
   selectNote: (measureId: string, noteId: string, voice?: 1 | 2) => void;
   toggleSlurStart: (noteId: string) => void;
   toggleSlurEnd: (noteId: string) => void;
@@ -1447,6 +1450,128 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
     applyScoreUpdate({ ...currentScore, measures: newMeasures });
   };
 
+  const addStackedPitchToActiveNote = (pitch: number, octave: number = 0, accidental: '#' | 'b' | 'n' | null = null) => {
+    const currentMeasureId = activeMeasureIdRef.current;
+    const currentNoteId = activeNoteIdRef.current;
+    const currentScore = scoreRef.current;
+    if (!currentMeasureId || !currentNoteId) return;
+
+    const currentTargetVoice = activeVoiceRef.current;
+    const newMeasures = currentScore.measures.map(measure => {
+      if (measure.id === currentMeasureId) {
+        const inVoice1 = measure.notes.some(n => n.id === currentNoteId);
+        const inVoice2 = !inVoice1 && measure.secondVoiceNotes && measure.secondVoiceNotes.some(n => n.id === currentNoteId);
+        const isVoice2 = inVoice2 || (currentTargetVoice === 2 && measure.secondVoiceNotes && measure.secondVoiceNotes.length > 0);
+
+        const voiceNotes = isVoice2 ? (measure.secondVoiceNotes || []) : measure.notes;
+        const targetIndex = voiceNotes.findIndex(n => n.id === currentNoteId);
+        if (targetIndex === -1) return measure;
+
+        const targetNote = voiceNotes[targetIndex];
+        // 如果当前音符为空白占位符或休止符，直接变为该音
+        if (targetNote.pitch <= 0) {
+          const updatedNote: Note = {
+            ...targetNote,
+            pitch,
+            octave,
+            accidental,
+            stackedPitches: []
+          };
+          const newNotes = [...voiceNotes];
+          newNotes[targetIndex] = updatedNote;
+          return {
+            ...measure,
+            ...(isVoice2 ? { secondVoiceNotes: newNotes } : { notes: newNotes })
+          };
+        }
+
+        // 当前音符已有实际音高，进行叠音 (纵向柱式和音)
+        const currentStacks = targetNote.stackedPitches ? [...targetNote.stackedPitches] : [];
+        // 避免完全相同的同音叠置
+        const exists = (targetNote.pitch === pitch && targetNote.octave === octave) ||
+          currentStacks.some(s => s.pitch === pitch && s.octave === octave);
+
+        if (!exists) {
+          currentStacks.push({ pitch, octave, accidental });
+        }
+
+        const updatedNote: Note = {
+          ...targetNote,
+          stackedPitches: currentStacks
+        };
+
+        const newNotes = [...voiceNotes];
+        newNotes[targetIndex] = updatedNote;
+        return {
+          ...measure,
+          ...(isVoice2 ? { secondVoiceNotes: newNotes } : { notes: newNotes })
+        };
+      }
+      return measure;
+    });
+
+    applyScoreUpdate({ ...currentScore, measures: newMeasures });
+  };
+
+  const removeStackedPitchFromActiveNote = () => {
+    const currentMeasureId = activeMeasureIdRef.current;
+    const currentNoteId = activeNoteIdRef.current;
+    const currentScore = scoreRef.current;
+    if (!currentMeasureId || !currentNoteId) return;
+
+    const currentTargetVoice = activeVoiceRef.current;
+    const newMeasures = currentScore.measures.map(measure => {
+      if (measure.id === currentMeasureId) {
+        const inVoice1 = measure.notes.some(n => n.id === currentNoteId);
+        const inVoice2 = !inVoice1 && measure.secondVoiceNotes && measure.secondVoiceNotes.some(n => n.id === currentNoteId);
+        const isVoice2 = inVoice2 || (currentTargetVoice === 2 && measure.secondVoiceNotes && measure.secondVoiceNotes.length > 0);
+
+        const voiceNotes = isVoice2 ? (measure.secondVoiceNotes || []) : measure.notes;
+        const targetIndex = voiceNotes.findIndex(n => n.id === currentNoteId);
+        if (targetIndex === -1) return measure;
+
+        const targetNote = voiceNotes[targetIndex];
+        if (targetNote.stackedPitches && targetNote.stackedPitches.length > 0) {
+          const updatedStacks = targetNote.stackedPitches.slice(0, -1);
+          const updatedNote: Note = {
+            ...targetNote,
+            stackedPitches: updatedStacks
+          };
+          const newNotes = [...voiceNotes];
+          newNotes[targetIndex] = updatedNote;
+          return {
+            ...measure,
+            ...(isVoice2 ? { secondVoiceNotes: newNotes } : { notes: newNotes })
+          };
+        }
+
+        // 无叠音时，重置为占位符
+        const updatedNote: Note = {
+          ...targetNote,
+          pitch: -2,
+          octave: 0,
+          accidental: null,
+          isDotted: false,
+          stackedPitches: []
+        };
+        const newNotes = [...voiceNotes];
+        newNotes[targetIndex] = updatedNote;
+        return {
+          ...measure,
+          ...(isVoice2 ? { secondVoiceNotes: newNotes } : { notes: newNotes })
+        };
+      }
+      return measure;
+    });
+
+    applyScoreUpdate({ ...currentScore, measures: newMeasures });
+  };
+
+  const setAccompanimentPattern = (pattern: AccompanimentPattern) => {
+    const currentScore = scoreRef.current;
+    applyScoreUpdate({ ...currentScore, accompanimentPattern: pattern });
+  };
+
   return (
     <ScoreContext.Provider
       value={{
@@ -1462,6 +1587,9 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
         playingNoteId,
         setPlayingNoteId,
         updateActiveNote,
+        addStackedPitchToActiveNote,
+        removeStackedPitchFromActiveNote,
+        setAccompanimentPattern,
         selectNote,
         toggleSlurStart,
         toggleSlurEnd,

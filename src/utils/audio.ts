@@ -7,7 +7,7 @@
 // 4. 自然琴箱声学共鸣与毛毡琴槌释放衰减 (Acoustic Soundboard Envelope)
 // -------------------------------------------------------------
 
-import { parseChordToMidiNotes } from './chord';
+import { parseChordToMidiNotes, generateChordPatternEvents } from './chord';
 import type { Score, Note } from '../types';
 import { Mp3Encoder } from '@breezystack/lamejs';
 
@@ -643,7 +643,7 @@ export const exportScoreToAudio = async (
         }
       }
 
-      // 1. 声部 1 (主旋律 100% 音量)
+      // 1. 声部 1 (主旋律 100% 音量 + 柱式叠置和音)
       if (v1HasSound && v1Ev && v1Ev.note.pitch > 0 && !v1Analysis.isTied[v1Ev.globalIdx]) {
         const playDurBeats = v1Analysis.tiedDur[v1Ev.globalIdx] || v1Ev.beats;
         const noteDurationSecs = Math.max(0.15, playDurBeats * beatDurationSecs);
@@ -654,28 +654,42 @@ export const exportScoreToAudio = async (
           duration: noteDurationSecs,
           volume: 1.0
         });
+
+        // 调度声部 1 的纵向柱式叠置和音 (Stacked Polyphonic Pitches)
+        if (v1Ev.note.stackedPitches && v1Ev.note.stackedPitches.length > 0) {
+          v1Ev.note.stackedPitches.forEach(sp => {
+            const { midi: spMidi } = calculateMidiNote(sp.pitch, sp.octave, sp.accidental, v1Key);
+            scheduledEvents.push({
+              time: currentPlaybackTime,
+              midi: spMidi,
+              duration: noteDurationSecs,
+              volume: 0.95
+            });
+          });
+        }
       }
 
-      // 和弦伴奏 (38% 音量，智能持续跨度)
+      // 和弦伴奏 (38% 音量，智能伴奏织体类型：全音柱式/节奏柱式/分解琶音/华尔兹)
       if (v1HasSound && v1Ev && v1Ev.note.chord && score.playAccompaniment !== false) {
         const nextChordEv = v1Events.find(e => e.start > currT + 0.001 && !!e.note.chord);
         const chordSpanBeats = nextChordEv
           ? (nextChordEv.start - currT)
           : Math.max(beatsPerMeasure - currT, measureDurationBeats - currT, 1.0);
-        const chordPlayDur = Math.max(0.3, chordSpanBeats * beatDurationSecs);
-        const midis = parseChordToMidiNotes(v1Ev.note.chord);
-        midis.forEach((midi, idx) => {
-          const noteVol = idx === 0 ? 0.38 * 1.05 : 0.38 * 0.8;
+
+        const pattern = score.accompanimentPattern || 'block';
+        const chordEvents = generateChordPatternEvents(v1Ev.note.chord, chordSpanBeats, pattern, score.timeSignature || '4/4');
+
+        chordEvents.forEach(ce => {
           scheduledEvents.push({
-            time: currentPlaybackTime,
-            midi,
-            duration: chordPlayDur,
-            volume: noteVol
+            time: currentPlaybackTime + ce.offsetBeats * beatDurationSecs,
+            midi: ce.midi,
+            duration: Math.max(0.2, ce.durationBeats * beatDurationSecs),
+            volume: 0.38 * ce.volumeScale
           });
         });
       }
 
-      // 2. 声部 2 (副旋律/低音伴奏 60% 音量)
+      // 2. 声部 2 (副旋律/低音伴奏 60% 音量 + 柱式叠置和音)
       if (v2HasSound && v2Ev && v2Ev.note.pitch > 0 && !v2Analysis.isTied[v2Ev.globalIdx]) {
         const playDurBeats2 = v2Analysis.tiedDur[v2Ev.globalIdx] || v2Ev.beats;
         const noteDurationSecs2 = Math.max(0.15, playDurBeats2 * beatDurationSecs);
@@ -686,6 +700,19 @@ export const exportScoreToAudio = async (
           duration: noteDurationSecs2,
           volume: 0.6
         });
+
+        // 调度声部 2 的纵向柱式叠置和音 (Stacked Polyphonic Pitches)
+        if (v2Ev.note.stackedPitches && v2Ev.note.stackedPitches.length > 0) {
+          v2Ev.note.stackedPitches.forEach(sp => {
+            const { midi: spMidi } = calculateMidiNote(sp.pitch, sp.octave, sp.accidental, v2Key);
+            scheduledEvents.push({
+              time: currentPlaybackTime,
+              midi: spMidi,
+              duration: noteDurationSecs2,
+              volume: 0.58
+            });
+          });
+        }
       }
 
       currentPlaybackTime += sliceBeats * beatDurationSecs;

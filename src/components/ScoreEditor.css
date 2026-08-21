@@ -753,11 +753,30 @@
 
 .note-core {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   position: relative;
   min-height: 24px;
   min-width: 14px;
+}
+
+/* 纵向叠置复音 / 柱式和弦 */
+.stacked-pitches-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1;
+}
+
+.single-stacked-pitch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-height: 16px;
 }
 
 /* 和弦标记符号显示层 (Chord Symbol) */

@@ -30,6 +30,8 @@ export const ScoreEditor = () => {
     setActiveMeasureId,
     activeNoteId,
     updateActiveNote,
+    addStackedPitchToActiveNote,
+    removeStackedPitchFromActiveNote,
     setMeasuresPerLine,
     insertLine,
     playingNoteId,
@@ -497,6 +499,21 @@ export const ScoreEditor = () => {
         if (num >= 1 && num <= 7) numPitch = num;
       }
 
+      // 5.1 Shift + 1~7 纵向和音/柱式和弦叠音快捷输入 (Stack note without moving cursor)
+      if (e.shiftKey && numPitch !== null && numPitch >= 1 && numPitch <= 7) {
+        e.preventDefault();
+        const currentOctave = pendingOctaveRef.current !== 0 ? pendingOctaveRef.current : 0;
+        const currentAccidental = pendingAccidentalRef.current !== null ? pendingAccidentalRef.current : null;
+
+        pendingOctaveRef.current = 0;
+        pendingAccidentalRef.current = null;
+
+        playNote(numPitch, currentOctave, currentAccidental, activeKeySig, activeNote?.duration || currentDuration, score.tempo || 120);
+        addStackedPitchToActiveNote(numPitch, currentOctave, currentAccidental);
+        return;
+      }
+
+      // 5.2 基础数字音符 1-7
       if (numPitch !== null) {
         e.preventDefault();
         const noteWasDotted = isDotted;
@@ -575,9 +592,15 @@ export const ScoreEditor = () => {
         const currIdx = allNotesList.findIndex(item => item.noteId === activeNoteId);
         if (currIdx !== -1) {
           const currentItem = allNotesList[currIdx];
+          // 如果当前音符包含柱式叠置和音，优先退格清除最上层叠音
+          if (currentItem.note.stackedPitches && currentItem.note.stackedPitches.length > 0) {
+            removeStackedPitchFromActiveNote();
+            return;
+          }
+
           if (currentItem.note.pitch !== -2) {
             // 当前音符有实际内容，重置为占位符 (保持当前位置)
-            updateActiveNote({ pitch: -2, octave: 0, accidental: null, isDotted: false }, false);
+            updateActiveNote({ pitch: -2, octave: 0, accidental: null, isDotted: false, stackedPitches: [] }, false);
           } else if (currIdx > 0) {
             // 当前音符已是空白占位符，光标回退到上一个音符并将其清空
             const prevItem = allNotesList[currIdx - 1];
@@ -2038,6 +2061,13 @@ const NoteBlock = ({
 }) => {
   const isPlaceholder = note.pitch === -2;
   const isExtension = note.pitch === -1;
+  const hasStacked = !isPlaceholder && !isExtension && note.pitch > 0 && note.stackedPitches && note.stackedPitches.length > 0;
+  const allPitches = hasStacked
+    ? [
+        { pitch: note.pitch, octave: note.octave, accidental: note.accidental },
+        ...(note.stackedPitches || [])
+      ].sort((a, b) => (b.pitch + b.octave * 7) - (a.pitch + a.octave * 7))
+    : [];
 
   return (
     <div
@@ -2055,61 +2085,108 @@ const NoteBlock = ({
               fontFamily: chordFont?.fontFamily || 'Arial, sans-serif',
               fontSize: `${chordFont?.fontSize || 16}px`,
               color: chordFont?.color || '#2563eb',
-              bottom: `calc(100% + ${18 + Math.max(0, (note.octave || 0) * 7)}px)`
+              bottom: `calc(100% + ${18 + Math.max(0, (hasStacked ? Math.max(...allPitches.map(p => p.octave)) : (note.octave || 0)) * 7)}px)`
             }}
           >
             {note.chord}
           </div>
         )}
 
-        {note.accidental && !isPlaceholder && !isExtension && (
-          <span className="accidental">
-            {note.accidental === '#' ? '♯' : note.accidental === 'b' ? '♭' : note.accidental}
-          </span>
-        )}
-
-        {note.octave > 0 && note.pitch > 0 && (
-          <div className="octave-dots top">
-            {Array.from({ length: note.octave }).map((_, i) => (
-              <span
-                key={i}
-                className="dot"
-                style={{
-                  width: `${octaveDotSize}px`,
-                  height: `${octaveDotSize}px`,
-                  backgroundColor: noteFont.color || 'currentColor'
-                }}
-              ></span>
+        {hasStacked ? (
+          <div className="stacked-pitches-column">
+            {allPitches.map((p, idx) => (
+              <div key={idx} className="single-stacked-pitch">
+                {p.accidental && (
+                  <span className="accidental">
+                    {p.accidental === '#' ? '♯' : p.accidental === 'b' ? '♭' : p.accidental}
+                  </span>
+                )}
+                {p.octave > 0 && (
+                  <div className="octave-dots top">
+                    {Array.from({ length: p.octave }).map((_, i) => (
+                      <span
+                        key={i}
+                        className="dot"
+                        style={{
+                          width: `${octaveDotSize}px`,
+                          height: `${octaveDotSize}px`,
+                          backgroundColor: noteFont.color || 'currentColor'
+                        }}
+                      ></span>
+                    ))}
+                  </div>
+                )}
+                <span className="pitch" style={{ fontFamily: noteFont.fontFamily, fontSize: `${noteFont.fontSize}px`, color: noteFont.color }}>
+                  {p.pitch}
+                </span>
+                {p.octave < 0 && (
+                  <div className="octave-dots bottom">
+                    {Array.from({ length: Math.abs(p.octave) }).map((_, i) => (
+                      <span
+                        key={i}
+                        className="dot"
+                        style={{
+                          width: `${octaveDotSize}px`,
+                          height: `${octaveDotSize}px`,
+                          backgroundColor: noteFont.color || 'currentColor'
+                        }}
+                      ></span>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
-        )}
-
-        {isPlaceholder ? (
-          <span className="pitch placeholder-dash" style={{ color: isPreviewMode ? 'transparent' : 'red', visibility: isPreviewMode ? 'hidden' : 'visible' }}>_</span>
-        ) : isExtension ? (
-          <span className="pitch extension-dash" style={{ fontFamily: noteFont.fontFamily, fontSize: `${noteFont.fontSize}px`, color: noteFont.color, fontWeight: 'bold' }}>-</span>
         ) : (
-          <span className="pitch" style={{ fontFamily: noteFont.fontFamily, fontSize: `${noteFont.fontSize}px`, color: noteFont.color }}>
-            {note.pitch === 0 ? '0' : note.pitch}
-          </span>
-        )}
+          <>
+            {note.accidental && !isPlaceholder && !isExtension && (
+              <span className="accidental">
+                {note.accidental === '#' ? '♯' : note.accidental === 'b' ? '♭' : note.accidental}
+              </span>
+            )}
 
-        {note.isDotted && !isPlaceholder && !isExtension && <span className="duration-dot"></span>}
+            {note.octave > 0 && note.pitch > 0 && (
+              <div className="octave-dots top">
+                {Array.from({ length: note.octave }).map((_, i) => (
+                  <span
+                    key={i}
+                    className="dot"
+                    style={{
+                      width: `${octaveDotSize}px`,
+                      height: `${octaveDotSize}px`,
+                      backgroundColor: noteFont.color || 'currentColor'
+                    }}
+                  ></span>
+                ))}
+              </div>
+            )}
 
-        {note.octave < 0 && note.pitch > 0 && (
-          <div className="octave-dots bottom">
-            {Array.from({ length: Math.abs(note.octave) }).map((_, i) => (
-              <span
-                key={i}
-                className="dot"
-                style={{
-                  width: `${octaveDotSize}px`,
-                  height: `${octaveDotSize}px`,
-                  backgroundColor: noteFont.color || 'currentColor'
-                }}
-              ></span>
-            ))}
-          </div>
+            {isPlaceholder ? (
+              <span className="pitch placeholder-dash" style={{ color: isPreviewMode ? 'transparent' : 'red', visibility: isPreviewMode ? 'hidden' : 'visible' }}>_</span>
+            ) : isExtension ? (
+              <span className="pitch extension-dash" style={{ fontFamily: noteFont.fontFamily, fontSize: `${noteFont.fontSize}px`, color: noteFont.color, fontWeight: 'bold' }}>-</span>
+            ) : (
+              <span className="pitch" style={{ fontFamily: noteFont.fontFamily, fontSize: `${noteFont.fontSize}px`, color: noteFont.color }}>
+                {note.pitch === 0 ? '0' : note.pitch}
+              </span>
+            )}
+
+            {note.octave < 0 && note.pitch > 0 && (
+              <div className="octave-dots bottom">
+                {Array.from({ length: Math.abs(note.octave) }).map((_, i) => (
+                  <span
+                    key={i}
+                    className="dot"
+                    style={{
+                      width: `${octaveDotSize}px`,
+                      height: `${octaveDotSize}px`,
+                      backgroundColor: noteFont.color || 'currentColor'
+                    }}
+                  ></span>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         {/* 减时线下划线：1/8 音符 1 条线，1/16 音符 2 条线，1/32 音符 3 条线，1/64 音符 4 条线 */}
