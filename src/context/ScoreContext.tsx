@@ -1451,10 +1451,21 @@ export const ScoreProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addStackedPitchToActiveNote = (pitch: number, octave: number = 0, accidental: '#' | 'b' | 'n' | null = null) => {
-    const currentMeasureId = activeMeasureIdRef.current;
-    const currentNoteId = activeNoteIdRef.current;
+    let currentMeasureId = activeMeasureIdRef.current;
+    let currentNoteId = activeNoteIdRef.current;
     const currentScore = scoreRef.current;
-    if (!currentMeasureId || !currentNoteId) return;
+    if (!currentMeasureId || !currentNoteId) {
+      if (currentScore.measures.length > 0 && currentScore.measures[0].notes.length > 0) {
+        currentMeasureId = currentScore.measures[0].id;
+        currentNoteId = currentScore.measures[0].notes[0].id;
+        activeMeasureIdRef.current = currentMeasureId;
+        activeNoteIdRef.current = currentNoteId;
+        setActiveMeasureId(currentMeasureId);
+        setActiveNoteId(currentNoteId);
+      } else {
+        return;
+      }
+    }
 
     const currentTargetVoice = activeVoiceRef.current;
     const newMeasures = currentScore.measures.map(measure => {

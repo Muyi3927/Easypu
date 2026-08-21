@@ -490,17 +490,37 @@ export const ScoreEditor = () => {
         return;
       }
 
-      // 5. 1~7 输入音符
+      // 5. 1~7 音符解析 (完整支持主键盘数字键、小键盘数字键、按住 Shift 时的符号映射及输入法按键)
       let numPitch: number | null = null;
-      if (key >= '1' && key <= '7') {
+      let isShiftCombo = e.shiftKey;
+
+      if (e.code && e.code.startsWith('Digit')) {
+        const d = parseInt(e.code.replace('Digit', ''));
+        if (d >= 1 && d <= 7) numPitch = d;
+      } else if (e.code && e.code.startsWith('Numpad')) {
+        const d = parseInt(e.code.replace('Numpad', ''));
+        if (d >= 1 && d <= 7) numPitch = d;
+      } else if (key >= '1' && key <= '7') {
         numPitch = parseInt(key);
-      } else if (e.code.startsWith('Numpad')) {
-        const num = parseInt(e.code.replace('Numpad', ''));
-        if (num >= 1 && num <= 7) numPitch = num;
+      } else {
+        // 主键盘在按住 Shift 时输出的常见符号 (中英文键盘)
+        const shiftSymbolMap: Record<string, number> = {
+          '!': 1, '！': 1,
+          '@': 2, '＠': 2,
+          '#': 3, '＃': 3,
+          '$': 4, '￥': 4, '＄': 4,
+          '%': 5, '％': 5,
+          '^': 6, '……': 6, '…': 6, '＾': 6,
+          '&': 7, '＆': 7
+        };
+        if (shiftSymbolMap[key] !== undefined) {
+          numPitch = shiftSymbolMap[key];
+          isShiftCombo = true;
+        }
       }
 
       // 5.1 Shift + 1~7 纵向和音/柱式和弦叠音快捷输入 (Stack note without moving cursor)
-      if (e.shiftKey && numPitch !== null && numPitch >= 1 && numPitch <= 7) {
+      if (isShiftCombo && numPitch !== null && numPitch >= 1 && numPitch <= 7) {
         e.preventDefault();
         const currentOctave = pendingOctaveRef.current !== 0 ? pendingOctaveRef.current : 0;
         const currentAccidental = pendingAccidentalRef.current !== null ? pendingAccidentalRef.current : null;
@@ -514,7 +534,7 @@ export const ScoreEditor = () => {
       }
 
       // 5.2 基础数字音符 1-7
-      if (numPitch !== null) {
+      if (numPitch !== null && numPitch >= 1 && numPitch <= 7) {
         e.preventDefault();
         const noteWasDotted = isDotted;
         const finalDuration = noteWasDotted ? currentDuration * 1.5 : currentDuration;
@@ -530,7 +550,7 @@ export const ScoreEditor = () => {
         // 播放键盘敲击发音反馈
         playNote(numPitch, currentOctave, currentAccidental, activeKeySig, finalDuration, score.tempo || 120);
 
-        updateActiveNote({ pitch: numPitch, octave: currentOctave, accidental: currentAccidental, duration: finalDuration, isDotted: noteWasDotted });
+        updateActiveNote({ pitch: numPitch, octave: currentOctave, accidental: currentAccidental, duration: finalDuration, isDotted: noteWasDotted, stackedPitches: [] });
         return;
       }
 
