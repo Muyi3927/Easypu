@@ -8,6 +8,7 @@ import { storageService, MAX_SCORES_PER_USER } from '../services/StorageService'
 import { createDefaultScore } from '../context/ScoreContext';
 import { formatRelativeTime } from '../services/CloudSyncService';
 import type { FolderItem, ScoreMeta } from '../types/storage';
+import { STANDARD_15_KEYS } from '../types';
 
 export const Dashboard = () => {
   const navigate = useNavigate();
@@ -1095,15 +1096,11 @@ export const Dashboard = () => {
                 <div className="form-group">
                   <label>调号</label>
                   <select value={newScoreKey} onChange={e => setNewScoreKey(e.target.value)}>
-                    <option value="1=C">1=C</option>
-                    <option value="1=D">1=D</option>
-                    <option value="1=E">1=E</option>
-                    <option value="1=F">1=F</option>
-                    <option value="1=G">1=G</option>
-                    <option value="1=A">1=A</option>
-                    <option value="1=B">1=B</option>
-                    <option value="1=bB">1=bB</option>
-                    <option value="1=bE">1=bE</option>
+                    {STANDARD_15_KEYS.map(k => (
+                      <option key={k.value} value={k.value}>
+                        {k.label} - {k.desc}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

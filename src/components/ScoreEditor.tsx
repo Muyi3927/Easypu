@@ -4,7 +4,8 @@ import { useScore, parseLineLyricsInput, generatePlaceholderMeasure } from '../c
 import { useEditor } from '../context/EditorContext';
 import { useAuth } from '../context/AuthContext';
 import { playNote } from '../utils/audio';
-import type { Note, Measure, FontSettings } from '../types';
+import type { Note, Measure, FontSettings, KeyOptionItem } from '../types';
+import { STANDARD_15_KEYS } from '../types';
 
 const splitCharAndPunct = (text: string) => {
   if (!text) return { charPart: '', punctPart: '' };
@@ -343,25 +344,14 @@ export const ScoreEditor = () => {
     }
   };
 
-  const keyOptions = [
-    { label: 'C', value: 'C' },
-    { label: 'C#', value: '#C' },
-    { label: 'Db', value: 'bD' },
-    { label: 'D', value: 'D' },
-    { label: 'D#', value: '#D' },
-    { label: 'Eb', value: 'bE' },
-    { label: 'E', value: 'E' },
-    { label: 'F', value: 'F' },
-    { label: 'F#', value: '#F' },
-    { label: 'Gb', value: 'bG' },
-    { label: 'G', value: 'G' },
-    { label: 'G#', value: '#G' },
-    { label: 'Ab', value: 'bA' },
-    { label: 'A', value: 'A' },
-    { label: 'A#', value: '#A' },
-    { label: 'Bb', value: 'bB' },
-    { label: 'B', value: 'B' },
-  ];
+  const isKeyActive = (curSig: string | undefined, keyItem: KeyOptionItem) => {
+    if (!curSig) return keyItem.value === '1=C';
+    const cur = curSig.replace(/\s+/g, '').replace('♯', '#').replace('♭', 'b').toUpperCase();
+    const v1 = keyItem.value.replace(/\s+/g, '').replace('♯', '#').replace('♭', 'b').toUpperCase();
+    const v2 = `1=${keyItem.shortName}`.replace(/\s+/g, '').replace('♯', '#').replace('♭', 'b').toUpperCase();
+    const v3 = keyItem.shortName.replace(/\s+/g, '').replace('♯', '#').replace('♭', 'b').toUpperCase();
+    return cur === v1 || cur === v2 || cur === v3;
+  };
 
   const timeSignatureOptions = [
     '2/2', '3/2', '2/4', '3/4', '4/4', '5/4', '6/4',
@@ -990,11 +980,12 @@ export const ScoreEditor = () => {
                           <div className="form-group">
                             <label>第 1 声部调号 ({score.voice1Name || '高音部'})</label>
                             <div className="key-grid">
-                              {keyOptions.map(k => (
+                              {STANDARD_15_KEYS.map(k => (
                                 <button
                                   key={k.value}
-                                  className={`key-btn ${(score.voice1KeySignature || score.keySignature) === `1=${k.value}` ? 'active' : ''}`}
-                                  onClick={() => setScore({ ...score, voice1KeySignature: `1=${k.value}`, keySignature: `1=${k.value}` })}
+                                  className={`key-btn ${isKeyActive(score.voice1KeySignature || score.keySignature, k) ? 'active' : ''}`}
+                                  onClick={() => setScore({ ...score, voice1KeySignature: k.value, keySignature: k.value })}
+                                  title={`${k.label} - ${k.desc}`}
                                 >
                                   {k.label}
                                 </button>
@@ -1005,11 +996,12 @@ export const ScoreEditor = () => {
                           <div className="form-group" style={{ marginTop: '12px' }}>
                             <label>第 2 声部独立调号 ({score.voice2Name || '低音部'})</label>
                             <div className="key-grid">
-                              {keyOptions.map(k => (
+                              {STANDARD_15_KEYS.map(k => (
                                 <button
                                   key={k.value}
-                                  className={`key-btn ${(score.voice2KeySignature || score.keySignature) === `1=${k.value}` ? 'active' : ''}`}
-                                  onClick={() => setScore({ ...score, voice2KeySignature: `1=${k.value}` })}
+                                  className={`key-btn ${isKeyActive(score.voice2KeySignature || score.keySignature, k) ? 'active' : ''}`}
+                                  onClick={() => setScore({ ...score, voice2KeySignature: k.value })}
+                                  title={`${k.label} - ${k.desc}`}
                                 >
                                   {k.label}
                                 </button>
@@ -1019,13 +1011,14 @@ export const ScoreEditor = () => {
                         </>
                       ) : (
                         <div className="form-group">
-                          <label>调号</label>
+                          <label>调号 (常用15个大调)</label>
                           <div className="key-grid">
-                            {keyOptions.map(k => (
+                            {STANDARD_15_KEYS.map(k => (
                               <button
                                 key={k.value}
-                                className={`key-btn ${score.keySignature === `1=${k.value}` ? 'active' : ''}`}
-                                onClick={() => setScore({ ...score, keySignature: `1=${k.value}`, voice1KeySignature: `1=${k.value}` })}
+                                className={`key-btn ${isKeyActive(score.keySignature, k) ? 'active' : ''}`}
+                                onClick={() => setScore({ ...score, keySignature: k.value, voice1KeySignature: k.value })}
+                                title={`${k.label} - ${k.desc}`}
                               >
                                 {k.label}
                               </button>

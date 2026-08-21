@@ -34,7 +34,6 @@ const ROOT_NOTE_OFFSETS: Record<string, number> = {
   'B': 11, 'Cb': 11
 };
 
-const NOTE_NAME_BY_SEMITONE = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 // 解析和弦名称得到对应的所有 MIDI 音符列表 (默认在 3-4 八度伴奏区)
 export const parseChordToMidiNotes = (chordName: string): number[] => {
@@ -224,9 +223,15 @@ export const generateChordPatternEvents = (
   return events;
 };
 
-// 根据当前曲谱调号自动计算该大调对应的 1~7 级自然和弦
+const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const NOTE_NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+// 根据当前曲谱调号自动计算该大调对应的 1~7 级自然和弦 (精准区分升号系与降号系和弦命名)
 export const getDiatonicChordsForKey = (keySig: string = '1=C'): ChordDefinition[] => {
   const tonicOffset = getKeyOffset(keySig);
+  const isSharpKey = keySig.includes('#') || ['1=G', '1=D', '1=A', '1=E', '1=B'].some(k => keySig.toUpperCase().includes(k));
+  const noteNames = isSharpKey ? NOTE_NAMES_SHARP : NOTE_NAMES_FLAT;
+
   // 自然大调音阶级数音程: 0 (Ⅰ), 2 (Ⅱ), 4 (Ⅲ), 5 (Ⅳ), 7 (Ⅴ), 9 (Ⅵ), 11 (Ⅶ)
   const scaleIntervals = [
     { offset: 0, suffix: '', degree: 'Ⅰ (主和弦)' },
@@ -241,7 +246,7 @@ export const getDiatonicChordsForKey = (keySig: string = '1=C'): ChordDefinition
 
   return scaleIntervals.map(({ offset, suffix, degree }) => {
     const semitone = (tonicOffset + offset) % 12;
-    const rootName = NOTE_NAME_BY_SEMITONE[semitone];
+    const rootName = noteNames[semitone];
     const name = `${rootName}${suffix}`;
     return {
       name,

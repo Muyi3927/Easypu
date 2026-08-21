@@ -88,3 +88,33 @@ export interface Score {
   pageMarginRight: number;
   measures: Measure[];
 }
+
+export interface KeyOptionItem {
+  value: string;      // '1=C', '1=G', etc.
+  shortName: string;  // 'C', 'G', etc.
+  label: string;      // '1=C (自然)', '1=G (1升)', etc.
+  desc: string;       // '无升降', '1个升号', etc.
+  accidentals: string;// '0', '1♯', '2♯', '1♭', etc.
+}
+
+// 音乐理论与简谱中标准的 15 个自然大调 (0~7升号, 1~7降号)
+export const STANDARD_15_KEYS: KeyOptionItem[] = [
+  // 自然大调 (无升降)
+  { value: '1=C', shortName: 'C', label: '1=C (自然)', desc: 'C大调 (无升降)', accidentals: '0' },
+  // 7 个常用升号大调 (1~7 升)
+  { value: '1=G', shortName: 'G', label: '1=G (1升)', desc: 'G大调 (1个升号 ♯F)', accidentals: '1♯' },
+  { value: '1=D', shortName: 'D', label: '1=D (2升)', desc: 'D大调 (2个升号 ♯F ♯C)', accidentals: '2♯' },
+  { value: '1=A', shortName: 'A', label: '1=A (3升)', desc: 'A大调 (3个升号 ♯F ♯C ♯G)', accidentals: '3♯' },
+  { value: '1=E', shortName: 'E', label: '1=E (4升)', desc: 'E大调 (4个升号 4♯)', accidentals: '4♯' },
+  { value: '1=B', shortName: 'B', label: '1=B (5升)', desc: 'B大调 (5个升号 5♯)', accidentals: '5♯' },
+  { value: '1=#F', shortName: '#F', label: '1=♯F (6升)', desc: '♯F大调 (6个升号 6♯)', accidentals: '6♯' },
+  { value: '1=#C', shortName: '#C', label: '1=♯C (7升)', desc: '♯C大调 (7个升号 7♯)', accidentals: '7♯' },
+  // 7 个常用降号大调 (1~7 降)
+  { value: '1=F', shortName: 'F', label: '1=F (1降)', desc: 'F大调 (1个降号 ♭B)', accidentals: '1♭' },
+  { value: '1=bB', shortName: 'bB', label: '1=♭B (2降)', desc: '♭B大调 (2个降号 ♭B ♭E)', accidentals: '2♭' },
+  { value: '1=bE', shortName: 'bE', label: '1=♭E (3降)', desc: '♭E大调 (3个降号 3♭)', accidentals: '3♭' },
+  { value: '1=bA', shortName: 'bA', label: '1=♭A (4降)', desc: '♭A大调 (4个降号 4♭)', accidentals: '4♭' },
+  { value: '1=bD', shortName: 'bD', label: '1=♭D (5降)', desc: '♭D大调 (5个降号 5♭)', accidentals: '5♭' },
+  { value: '1=bG', shortName: 'bG', label: '1=♭G (6降)', desc: '♭G大调 (6个降号 6♭)', accidentals: '6♭' },
+  { value: '1=bC', shortName: 'bC', label: '1=♭C (7降)', desc: '♭C大调 (7个降号 7♭)', accidentals: '7♭' },
+];
