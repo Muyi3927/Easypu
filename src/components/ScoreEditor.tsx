@@ -2109,97 +2109,103 @@ const NoteBlock = ({
           <div className="stacked-pitches-column">
             {allPitches.map((p, idx) => (
               <div key={idx} className="single-stacked-pitch">
-                {p.accidental && (
-                  <span className="accidental">
-                    {p.accidental === '#' ? '♯' : p.accidental === 'b' ? '♭' : p.accidental}
-                  </span>
-                )}
-                {p.octave > 0 && (
-                  <div className="octave-dots top">
-                    {Array.from({ length: p.octave }).map((_, i) => (
-                      <span
-                        key={i}
-                        className="dot"
-                        style={{
-                          width: `${octaveDotSize}px`,
-                          height: `${octaveDotSize}px`,
-                          backgroundColor: noteFont.color || 'currentColor'
-                        }}
-                      ></span>
-                    ))}
+                <div className="pitch-main-wrapper">
+                  {p.accidental && (
+                    <span className="accidental">
+                      {p.accidental === '#' ? '♯' : p.accidental === 'b' ? '♭' : p.accidental}
+                    </span>
+                  )}
+                  <div className="pitch-digit-box">
+                    {p.octave > 0 && (
+                      <div className="octave-dots top">
+                        {Array.from({ length: p.octave }).map((_, i) => (
+                          <span
+                            key={i}
+                            className="dot"
+                            style={{
+                              width: `${octaveDotSize}px`,
+                              height: `${octaveDotSize}px`,
+                              backgroundColor: noteFont.color || 'currentColor'
+                            }}
+                          ></span>
+                        ))}
+                      </div>
+                    )}
+                    <span className="pitch" style={{ fontFamily: noteFont.fontFamily, fontSize: `${noteFont.fontSize}px`, color: noteFont.color }}>
+                      {p.pitch}
+                    </span>
+                    {p.octave < 0 && (
+                      <div className="octave-dots bottom">
+                        {Array.from({ length: Math.abs(p.octave) }).map((_, i) => (
+                          <span
+                            key={i}
+                            className="dot"
+                            style={{
+                              width: `${octaveDotSize}px`,
+                              height: `${octaveDotSize}px`,
+                              backgroundColor: noteFont.color || 'currentColor'
+                            }}
+                          ></span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-                <span className="pitch" style={{ fontFamily: noteFont.fontFamily, fontSize: `${noteFont.fontSize}px`, color: noteFont.color }}>
-                  {p.pitch}
-                </span>
-                {p.octave < 0 && (
-                  <div className="octave-dots bottom">
-                    {Array.from({ length: Math.abs(p.octave) }).map((_, i) => (
-                      <span
-                        key={i}
-                        className="dot"
-                        style={{
-                          width: `${octaveDotSize}px`,
-                          height: `${octaveDotSize}px`,
-                          backgroundColor: noteFont.color || 'currentColor'
-                        }}
-                      ></span>
-                    ))}
-                  </div>
-                )}
+                </div>
               </div>
             ))}
           </div>
         ) : (
-          <>
+          <div className="pitch-main-wrapper">
             {note.accidental && !isPlaceholder && !isExtension && (
               <span className="accidental">
                 {note.accidental === '#' ? '♯' : note.accidental === 'b' ? '♭' : note.accidental}
               </span>
             )}
 
-            {note.octave > 0 && note.pitch > 0 && (
-              <div className="octave-dots top">
-                {Array.from({ length: note.octave }).map((_, i) => (
-                  <span
-                    key={i}
-                    className="dot"
-                    style={{
-                      width: `${octaveDotSize}px`,
-                      height: `${octaveDotSize}px`,
-                      backgroundColor: noteFont.color || 'currentColor'
-                    }}
-                  ></span>
-                ))}
-              </div>
-            )}
+            <div className="pitch-digit-box">
+              {note.octave > 0 && note.pitch > 0 && (
+                <div className="octave-dots top">
+                  {Array.from({ length: note.octave }).map((_, i) => (
+                    <span
+                      key={i}
+                      className="dot"
+                      style={{
+                        width: `${octaveDotSize}px`,
+                        height: `${octaveDotSize}px`,
+                        backgroundColor: noteFont.color || 'currentColor'
+                      }}
+                    ></span>
+                  ))}
+                </div>
+              )}
 
-            {isPlaceholder ? (
-              <span className="pitch placeholder-dash" style={{ color: isPreviewMode ? 'transparent' : 'red', visibility: isPreviewMode ? 'hidden' : 'visible' }}>_</span>
-            ) : isExtension ? (
-              <span className="pitch extension-dash" style={{ fontFamily: noteFont.fontFamily, fontSize: `${noteFont.fontSize}px`, color: noteFont.color, fontWeight: 'bold' }}>-</span>
-            ) : (
-              <span className="pitch" style={{ fontFamily: noteFont.fontFamily, fontSize: `${noteFont.fontSize}px`, color: noteFont.color }}>
-                {note.pitch === 0 ? '0' : note.pitch}
-              </span>
-            )}
+              {isPlaceholder ? (
+                <span className="pitch placeholder-dash" style={{ color: isPreviewMode ? 'transparent' : 'red', visibility: isPreviewMode ? 'hidden' : 'visible' }}>_</span>
+              ) : isExtension ? (
+                <span className="pitch extension-dash" style={{ fontFamily: noteFont.fontFamily, fontSize: `${noteFont.fontSize}px`, color: noteFont.color, fontWeight: 'bold' }}>-</span>
+              ) : (
+                <span className="pitch" style={{ fontFamily: noteFont.fontFamily, fontSize: `${noteFont.fontSize}px`, color: noteFont.color }}>
+                  {note.pitch === 0 ? '0' : note.pitch}
+                </span>
+              )}
 
-            {note.octave < 0 && note.pitch > 0 && (
-              <div className="octave-dots bottom">
-                {Array.from({ length: Math.abs(note.octave) }).map((_, i) => (
-                  <span
-                    key={i}
-                    className="dot"
-                    style={{
-                      width: `${octaveDotSize}px`,
-                      height: `${octaveDotSize}px`,
-                      backgroundColor: noteFont.color || 'currentColor'
-                    }}
-                  ></span>
-                ))}
-              </div>
-            )}
-          </>
+              {note.octave < 0 && note.pitch > 0 && (
+                <div className="octave-dots bottom">
+                  {Array.from({ length: Math.abs(note.octave) }).map((_, i) => (
+                    <span
+                      key={i}
+                      className="dot"
+                      style={{
+                        width: `${octaveDotSize}px`,
+                        height: `${octaveDotSize}px`,
+                        backgroundColor: noteFont.color || 'currentColor'
+                      }}
+                    ></span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* 减时线下划线：1/8 音符 1 条线，1/16 音符 2 条线，1/32 音符 3 条线，1/64 音符 4 条线 */}

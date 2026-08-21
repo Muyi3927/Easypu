@@ -882,16 +882,34 @@
   border-radius: 1px;
 }
 
+/* 音高数字与变音记号容器 (确保升降号精确位于音符左上方) */
+.pitch-main-wrapper {
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: center;
+  position: relative;
+  line-height: 1;
+}
+
+.pitch-digit-box {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  line-height: 1;
+}
+
 .accidental {
-  font-size: 0.8em;
+  font-size: 0.68em;
   font-weight: 900;
   margin-right: 1px;
-  align-self: flex-start;
-  margin-top: -0.05em;
+  margin-top: -0.22em; /* 简谱标准规范：升降号位于音符左上角 */
   color: inherit;
   line-height: 1;
   display: inline-block;
-  text-shadow: 0.4px 0 0 currentColor;
+  user-select: none;
+  text-shadow: 0.2px 0 0 currentColor;
 }
 
 .octave-dots {
