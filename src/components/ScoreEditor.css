@@ -475,9 +475,10 @@
 .measure-voices-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px; /* 充足垂直间距，彻底避免1部与2部柱式和弦重叠 */
   width: 100%;
   flex: 1;
+  padding: 2px 0;
 }
 
 .measure-voice-row {
@@ -488,6 +489,38 @@
   border-radius: 4px;
   padding: 2px 0;
   transition: all 0.15s ease;
+}
+
+/* 声部 2 (副旋律/低音伴奏部) 音符与柱式和弦适度微调小，突出主旋律且防止碰撞 */
+.measure-voice-2 .note-block {
+  font-size: 0.85em;
+}
+
+.measure-voice-2 .pitch {
+  font-size: 0.85em !important;
+}
+
+.measure-voice-2 .stacked-pitches-column {
+  gap: 0px;
+  line-height: 0.85;
+}
+
+.measure-voice-2 .single-stacked-pitch {
+  min-height: 12px;
+  padding: 0;
+}
+
+.measure-voice-2 .single-stacked-pitch .pitch {
+  font-size: 0.78em !important;
+}
+
+.measure-voice-2 .single-stacked-pitch .accidental {
+  font-size: 0.65em;
+}
+
+.measure-voice-2 .single-stacked-pitch .dot {
+  width: 3.5px !important;
+  height: 3.5px !important;
 }
 
 .voice-prefix-tag {
@@ -767,8 +800,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
-  line-height: 1;
+  gap: 0px;
+  line-height: 0.9;
+  margin: 1px 0;
 }
 
 .single-stacked-pitch {
@@ -776,7 +810,22 @@
   align-items: center;
   justify-content: center;
   position: relative;
-  min-height: 16px;
+  min-height: 13px;
+}
+
+.single-stacked-pitch .pitch {
+  font-size: 0.88em !important;
+  line-height: 1;
+}
+
+.single-stacked-pitch .accidental {
+  font-size: 0.72em;
+  margin-right: 1px;
+}
+
+.single-stacked-pitch .dot {
+  width: 4px !important;
+  height: 4px !important;
 }
 
 /* 和弦标记符号显示层 (Chord Symbol) */
